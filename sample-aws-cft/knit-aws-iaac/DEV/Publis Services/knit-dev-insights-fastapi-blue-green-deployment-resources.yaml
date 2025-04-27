@@ -1,0 +1,351 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: The template used to create an ECS Service from the ECS Console.
+
+Parameters:
+  VpcID:
+    Type: String
+    Default: vpc-074bb0b6f81390144
+  ECSClusterName:
+    Type: String
+    Default: knit-backend-dev
+  ContainerName:
+    Type: String
+    Default: "knit-dev-insights-fastapi-container"
+  ECSServiceName:
+    Type: String
+    Default: "knit-dev-insights-fastapi-blue-green"
+  ApplicationName:
+    Type: String
+    Default: AppECS-knit-backend-dev-knit-dev-insights-fastapi-blue-green
+  DeploymentGroupName:
+    Type: String
+    Default: DgpECS-knit-backend-dev-knit-dev-insights-fastapi-blue-green
+  PortMapping:
+    Type: Number
+    Default: 80
+  TargetGroupOneName:
+    Type: String
+    Default: "knit-dev-fastapi-blue-tg"
+  TargetGroupTwoName:
+    Type: String
+    Default: "knit-dev-fastapi-green-tg"
+  TaskDefinitionARN:
+    Type: String
+    Default: "arn:aws:ecs:us-east-1:020587470742:task-definition/knit-dev-insights-fastapi:534"
+  Priority:
+    Type: Number
+    Default: 10
+  ApiAccessUrl:
+    Type: String
+    Default: "/knit-dev-insights-fastapi-blue-green*"
+  ServiceConnectConfigurationEnable:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Default: false
+  DesiredCount:
+    Type: Number
+    Default: 1
+  HealthCheckPath:
+    Description: Kindly enter health check path for your application
+    Type: "String"
+    Default: "/api/docs"
+
+Resources:
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for the Application
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: !Ref ECSServiceName
+      NamespaceId: ns-jasbuckusdlqlcnp
+
+  TargetGroupOne:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: !Ref HealthCheckPath
+      Name: !Ref TargetGroupOneName
+      Port: !Ref PortMapping
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      VpcId: !Ref VpcID
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '300'
+
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn:
+            !Ref TargetGroupOne
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - !Ref ApiAccessUrl 
+      ListenerArn: !Sub "arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/knit-devuat-alb/3d51b2470f5ac635/1ede720b5b57e7b0"
+      Priority: !Ref Priority
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ListenerRule
+    Properties:
+      ServiceName: !Ref ECSServiceName
+      TaskDefinition: !Ref TaskDefinitionARN
+      Cluster: !Ref ECSClusterName
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      SchedulingStrategy: REPLICA
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - subnet-03f7e0d21159d4cfe
+            - subnet-0ce07f51b93037168
+          SecurityGroups: 
+            - sg-015b382345d12321c
+      LoadBalancers:
+        - ContainerName: !Ref ContainerName 
+          ContainerPort: !Ref PortMapping
+          TargetGroupArn: !Ref TargetGroupOne
+      ServiceRegistries:
+        - RegistryArn: !GetAtt DiscoveryService.Arn
+      DeploymentController:
+        Type: CODE_DEPLOY
+      ServiceConnectConfiguration:
+        Enabled: !Ref ServiceConnectConfigurationEnable
+
+  TargetGroupTwo:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: !Ref HealthCheckPath
+      Name: !Ref TargetGroupTwoName
+      Port: !Ref PortMapping
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      VpcId: !Ref VpcID
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '300'
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    DependsOn:
+      - ECSService
+    Properties:
+      ApplicationName:
+        !Ref ApplicationName
+      ComputePlatform: ECS
+
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - CodeDeployApplication
+    Properties:
+      ApplicationName:
+        !Ref ApplicationName
+      DeploymentGroupName:
+        !Ref DeploymentGroupName
+      DeploymentConfigName: CodeDeployDefault.ECSCanary10Percent5Minutes
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_REQUEST
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+      DeploymentStyle:
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: BLUE_GREEN
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns:
+                - !Sub "arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/knit-devuat-alb/3d51b2470f5ac635/1ede720b5b57e7b0"
+            TargetGroups:
+              - Name:
+                  Fn::GetAtt:
+                    - TargetGroupOne
+                    - TargetGroupName
+              - Name:
+                  Fn::GetAtt:
+                    - TargetGroupTwo
+                    - TargetGroupName
+      ServiceRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/knit-dev-ecs-code-deploy-role"
+      ECSServices:
+        - ClusterName:
+            !Ref ECSClusterName
+          ServiceName:
+            !Ref ECSServiceName
+
+  InsightsFastapiCodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codebuild.amazonaws.com"
+            Action: "sts:AssumeRole"
+      RoleName: "knit-dev-insights-fastapi-code-build-role"
+      Policies:
+        - PolicyName: "knit-dev-insights-fastapi-code-build-role-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-dev-insights-fastapi-blue-green-build"
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-dev-insights-fastapi-blue-green-build:*"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-*"
+                  - !Sub "arn:aws:s3:::knit-dev-global-artifact-store/*"
+                  - !Sub "arn:aws:s3:::knit-dev-backend-environment-files/*"
+                  - !Sub "arn:aws:s3:::knit-beta-global-artifact-store/*"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+              - Effect: "Allow"
+                Action:
+                  - "codebuild:CreateReportGroup"
+                  - "codebuild:CreateReport"
+                  - "codebuild:UpdateReport"
+                  - "codebuild:BatchPutTestCases"
+                  - "codebuild:BatchPutCodeCoverages"
+                Resource:
+                  - !Sub "arn:aws:codebuild:us-east-1:${AWS::AccountId}:report-group/knit-dev-insights-fastapi-blue-green-build-*"
+              - Effect: "Allow"
+                Action:
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecs:DescribeTaskDefinition"
+                Resource:
+                  - "*"
+
+  InsightsFastapiCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    DependsOn: InsightsFastapiCodeBuildRole
+    Properties:
+      Name: "knit-dev-insights-fastapi-blue-green-build"
+      ServiceRole: !GetAtt InsightsFastapiCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: "knit-dev-insights-fastapi-blue-green-build"
+        Packaging: NONE
+        EncryptionDisabled: false
+      Cache:
+        Type: NO_CACHE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ComputeType: BUILD_GENERAL1_SMALL
+        PrivilegedMode: true
+        ImagePullCredentialsType: CODEBUILD
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub "${AWS::AccountId}"
+            Type: PLAINTEXT
+          - Name: ENV
+            Value: "dev"
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        InsecureSsl: false
+      TimeoutInMinutes: 15
+      QueuedTimeoutInMinutes: 60
+      EncryptionKey: !Sub "arn:aws:kms:us-east-1:${AWS::AccountId}:alias/aws/s3"
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+        S3Logs:
+          Status: DISABLED
+          EncryptionDisabled: false
+      Visibility: PRIVATE
+
+  InsightsFastapiCodeCodePipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    DependsOn: 
+      - InsightsFastapiCodeBuildProject
+    Properties:
+      Name: "knit-dev-insights-fastapi-blue-green-pipeline"
+      RoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/AWSCodePipelineServiceRole-us-east-1-knit-dev-insights-fastapi"
+      ArtifactStore:
+        Type: S3
+        Location: "knit-beta-global-artifact-store"
+      Stages:
+        - Name: "Source"
+          Actions:
+            - Name: "Source"
+              ActionTypeId:
+                Category: "Source"
+                Owner: "AWS"
+                Provider: "CodeStarSourceConnection"
+                Version: "1"
+              Configuration:
+                BranchName: "KT-3831"
+                ConnectionArn: !Sub "arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/0ba1a107-399a-4754-969b-1462737c38f6"
+                DetectChanges: "true"
+                FullRepositoryId: "knit-insights/knit-insights-fastapi"
+                OutputArtifactFormat: "CODE_ZIP"
+              OutputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: "Build"
+          Actions:
+            - Name: "Build"
+              ActionTypeId:
+                Category: "Build"
+                Owner: "AWS"
+                Provider: "CodeBuild"
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref InsightsFastapiCodeBuildProject
+              OutputArtifacts:
+                - Name: "BuildArtifact"
+              InputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: '1'
+              RunOrder: 1
+              Configuration:
+                ApplicationName: AppECS-knit-backend-dev-knit-dev-insights-fastapi-blue-green
+                DeploymentGroupName: DgpECS-knit-backend-dev-knit-dev-insights-fastapi-blue-green
+              InputArtifacts:
+                - Name: BuildArtifact
+              Namespace: IMAGE
+      ExecutionMode: "QUEUED"
+      PipelineType: "V2"

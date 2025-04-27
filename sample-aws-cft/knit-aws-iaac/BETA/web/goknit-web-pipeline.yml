@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'AWS CloudFormation template for creating knit-beta-environment-resources' 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  InsightsCodeBuildRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'codebuild.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      RoleName: !Sub 'knit-${EnvironmentName}-insights-code-build-role'
+      Policies:
+        - PolicyName: 'BucketAccessPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: 'Bucketaccess'
+                Effect: 'Allow'
+                Action: 
+                  - 's3:ListBucket'
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:DeleteObject'
+                  - 's3:GetBucketAcl'
+                  - 's3:GetBucketLocation'
+                Resource:
+                  - !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-*'
+                  - !Sub 'arn:aws:s3:::knit-${EnvironmentName}-global-artifact-store'
+                  - !Sub 'arn:aws:s3:::knit-${EnvironmentName}-global-artifact-store/*'
+                  - !Sub 'arn:aws:s3:::com.goknit.${EnvironmentName}'
+                  - !Sub 'arn:aws:s3:::com.goknit.${EnvironmentName}/*'
+              - Sid: 'Cloudformation'
+                Effect: 'Allow'
+                Action: 'cloudfront:CreateInvalidation'
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/E3NG3WZO9OSGSC'
+              - Sid: 'CodeArtifactAccess'
+                Effect: 'Allow'
+                Action:
+                  - 'codeartifact:GetAuthorizationToken'
+                  - 'codeartifact:GetRepositoryEndpoint'
+                  - 'codeartifact:ReadFromRepository'
+                Resource:
+                  - !Sub 'arn:aws:codeartifact:${AWS::Region}:${AWS::AccountId}:domain/knit'
+                  - !Sub 'arn:aws:codeartifact:${AWS::Region}:${AWS::AccountId}:repository/knit/*'
+              - Sid: 'LogAccess'
+                Effect: 'Allow'
+                Action: 
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-insights-build'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-insights-build:*'
+              - Sid: 'CodeBuildAccess'
+                Effect: 'Allow'
+                Action:
+                  - 'codebuild:CreateReportGroup'
+                  - 'codebuild:CreateReport'
+                  - 'codebuild:UpdateReport'
+                  - 'codebuild:BatchPutTestCases'
+                  - 'codebuild:BatchPutCodeCoverages'
+                Resource:
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/knit-${EnvironmentName}-insights-build-*'
+              - Sid: 'STSGetServiceBearerTokenAccess'
+                Effect: 'Allow'
+                Action:
+                  - 'sts:GetServiceBearerToken'
+                Resource: '*'
+   
+  InsightsCodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    DependsOn: InsightsCodeBuildRole
+    Properties:
+      Name: !Sub 'knit-${EnvironmentName}-insights-build'
+      ServiceRole: !GetAtt InsightsCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: !Sub 'knit-${EnvironmentName}-insights-build'
+        Packaging: NONE
+        EncryptionDisabled: false
+      Cache:
+        Type: NO_CACHE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        PrivilegedMode: true
+        ImagePullCredentialsType: CODEBUILD
+        EnvironmentVariables:
+          - Name: ENV
+            Value: !Sub '${EnvironmentName}'
+            Type: PLAINTEXT
+          - Name: KNIT_INSIGHTS_BUCKET_NAME
+            Value: !Sub 'com.goknit.${EnvironmentName}'
+            Type: PLAINTEXT
+          - Name: KNIT_INSIGHTS_CLOUDFRONT_DISTRIBUTION_ID
+            Value: 'E3NG3WZO9OSGSC'
+            Type: PLAINTEXT
+          - Name: AWS_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: DOMAIN
+            Value: 'knit'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+
+      Source:
+        Type: CODEPIPELINE
+        InsecureSsl: false
+      TimeoutInMinutes: 60
+      QueuedTimeoutInMinutes: 480
+      EncryptionKey: !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3'
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+        S3Logs:
+          Status: DISABLED
+          EncryptionDisabled: false
+      Visibility: PRIVATE
+
+  InsightsCodeCodePipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    DependsOn: 
+      - InsightsCodeBuildProject
+    Properties:
+      Name: !Sub 'knit-${EnvironmentName}-insights-pipeline'
+      RoleArn: !ImportValue
+          Fn::Sub: 'knit-${EnvironmentName}-code-pipeline-execution-role'
+      ArtifactStore:
+        Type: S3
+        Location: !ImportValue
+          Fn::Sub: 'knit-${EnvironmentName}-global-artifact-store'
+      Stages:
+        - Name: 'Source'
+          Actions:
+            - Name: 'Source'
+              ActionTypeId:
+                Category: 'Source'
+                Owner: 'AWS'
+                Provider: 'CodeStarSourceConnection'
+                Version: '1'
+              Configuration:
+                BranchName: !Sub '${EnvironmentName}'
+                ConnectionArn: !Sub 'arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/0ba1a107-399a-4754-969b-1462737c38f6'
+                DetectChanges: 'true'
+                FullRepositoryId: 'knit-insights/knit-insights'
+                OutputArtifactFormat: 'CODE_ZIP'
+              OutputArtifacts:
+                - Name: 'SourceArtifact'
+        - Name: 'Build'
+          Actions:
+            - Name: 'Build'
+              ActionTypeId:
+                Category: 'Build'
+                Owner: 'AWS'
+                Provider: 'CodeBuild'
+                Version: '1'
+              Configuration:
+                ProjectName: !Sub 'knit-${EnvironmentName}-insights-build'
+              OutputArtifacts:
+                - Name: 'BuildArtifact'
+              InputArtifacts:
+                - Name: 'SourceArtifact'
+      ExecutionMode: 'QUEUED'
+      PipelineType: 'V2'

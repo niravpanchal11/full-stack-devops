@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  KnitCloudfrontLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "knit-${EnvironmentName}-cloudfront-logs"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      AccessControl: BucketOwnerFullControl
+  CloudFrontLoggingBucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref KnitCloudfrontLogsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AllowCloudFrontToWriteLogs"
+            Effect: "Allow"
+            Principal:
+              Service: "cloudfront.amazonaws.com"
+            Action: "s3:PutObject"
+            Resource: !Sub "arn:aws:s3:::${KnitCloudfrontLogsBucket}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceAccount: !Ref "AWS::AccountId"
+              StringLike:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/knit-${EnvironmentName}*"
+
+Outputs:
+  KnitCloudfrontLogsBucketDomainName:
+    Description: "CloudFront logs bucket DomainName"
+    Value: !GetAtt KnitCloudfrontLogsBucket.DomainName
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-cloudfront-logs-bucket-domain-name"

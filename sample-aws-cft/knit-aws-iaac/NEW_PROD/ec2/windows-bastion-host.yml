@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating windows bastion host" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  WindowsBastionKeyName:
+    Type: String
+
+Resources:
+  WindowsBastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      GroupDescription: !Sub "knit-${EnvironmentName} Security group for Windows Bastion Host"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "3389"
+          ToPort: "3389"
+          CidrIp: "103.176.134.114/32"
+          Description: "raviraj-office-ip-primary"
+        - IpProtocol: tcp
+          FromPort: "3389"
+          ToPort: "3389"
+          CidrIp: "103.139.69.71/32"
+          Description: "raviraj-office-ip-primary"
+        - IpProtocol: tcp
+          FromPort: "3389"
+          ToPort: "3389"
+          CidrIp: "106.201.230.210/32"
+          Description: "softvan-office-ip-airtel"
+        - IpProtocol: tcp
+          FromPort: "3389"
+          ToPort: "3389"
+          CidrIp: "115.246.27.2/32"
+          Description: "softvan-office-ip-jio"
+        - IpProtocol: tcp
+          FromPort: "3389"
+          ToPort: "3389"
+          CidrIp: "103.241.45.121/32"
+          Description: "softvan-office-ip-gtpl"
+        - IpProtocol: tcp
+          FromPort: "3389"
+          ToPort: "3389"
+          CidrIp: "103.241.45.121/32"
+          Description: "softvan-office-ip-you-broadband"
+        - IpProtocol: tcp
+          FromPort: "6379"
+          ToPort: "6379"
+          CidrIp: "106.201.230.210/32"
+          Description: "softvan-office-ip-airtel"
+        - IpProtocol: tcp
+          FromPort: "6379"
+          ToPort: "6379"
+          CidrIp: "115.246.27.2/32"
+          Description: "softvan-office-ip-jio"
+        - IpProtocol: tcp
+          FromPort: "6379"
+          ToPort: "6379"
+          CidrIp: "103.241.45.121/32"
+          Description: "softvan-office-ip-gtpl"
+        - IpProtocol: tcp
+          FromPort: "6379"
+          ToPort: "6379"
+          CidrIp: "103.241.45.121/32"
+          Description: "softvan-office-ip-you-broadband"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  WindowsBastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      SubnetId: !ImportValue 
+        "Fn::Sub": "knit-${EnvironmentName}-public-subnet-1"
+      InstanceType: t2.medium
+      ImageId: ami-05b4ded3ceb71e470
+      KeyName: !Ref WindowsBastionKeyName
+      SecurityGroupIds:
+        - !Ref WindowsBastionSecurityGroup
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties: 
+      InstanceId: !Ref WindowsBastionHost
+
+  AllowAccessToWindowsBastionHost:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - WindowsBastionSecurityGroup
+          - GroupId
+      GroupId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-private-alb-sg"
+ 
+Outputs:
+  WindowsBastionSecurityGroup:
+    Value: !Ref WindowsBastionSecurityGroup
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-windows-bastion-security-group"

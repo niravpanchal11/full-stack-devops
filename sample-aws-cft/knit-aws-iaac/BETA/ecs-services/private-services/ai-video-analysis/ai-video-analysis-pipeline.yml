@@ -1,0 +1,159 @@
+Resources:
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating knit-beta-environment-resources" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  AIVideoAnalysisCodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codebuild.amazonaws.com"
+            Action: "sts:AssumeRole"
+      RoleName: !Sub "knit-${EnvironmentName}-ai-video-analysis-code-build-role"
+      Policies:
+        - PolicyName: !Sub "knit-${EnvironmentName}-ai-video-analysis-code-build-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-ai-video-analysis-build"
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-ai-video-analysis-build:*"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-*"
+                  - !Sub "arn:aws:s3:::knit-${EnvironmentName}-global-artifact-store/*"
+                  - !Sub "arn:aws:s3:::knit-${EnvironmentName}-backend-environment-files/*"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+              - Effect: "Allow"
+                Action:
+                  - "codebuild:CreateReportGroup"
+                  - "codebuild:CreateReport"
+                  - "codebuild:UpdateReport"
+                  - "codebuild:BatchPutTestCases"
+                  - "codebuild:BatchPutCodeCoverages"
+                Resource:
+                  - !Sub "arn:aws:codebuild:us-east-1:${AWS::AccountId}:report-group/knit-${EnvironmentName}-ai-video-analysis-build-*"
+              - Effect: "Allow"
+                Action:
+                  - "ecr:GetAuthorizationToken"
+                Resource:
+                  - "*"
+
+  AIVideoAnalysisCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    DependsOn: AIVideoAnalysisCodeBuildRole
+    Properties:
+      Name: !Sub "knit-${EnvironmentName}-ai-video-analysis-build"
+      ServiceRole: !GetAtt AIVideoAnalysisCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: !Sub "knit-${EnvironmentName}-ai-video-analysis-build"
+        Packaging: NONE
+        EncryptionDisabled: false
+      Cache:
+        Type: NO_CACHE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ComputeType: BUILD_GENERAL1_SMALL
+        PrivilegedMode: true
+        ImagePullCredentialsType: CODEBUILD
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub "${AWS::AccountId}"
+            Type: PLAINTEXT
+          - Name: ENV
+            Value: !Sub "${EnvironmentName}"
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        InsecureSsl: false
+      TimeoutInMinutes: 15
+      QueuedTimeoutInMinutes: 60
+      EncryptionKey: !Sub "arn:aws:kms:us-east-1:${AWS::AccountId}:alias/aws/s3"
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+        S3Logs:
+          Status: DISABLED
+          EncryptionDisabled: false
+      Visibility: PRIVATE
+
+  AIVideoAnalysisCodeCodePipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    DependsOn: 
+      - AIVideoAnalysisCodeBuildProject
+    Properties:
+      Name: !Sub "knit-${EnvironmentName}-ai-video-analysis-pipeline"
+      RoleArn: !ImportValue
+          Fn::Sub: "knit-${EnvironmentName}-code-pipeline-execution-role"
+      ArtifactStore:
+        Type: S3
+        Location: !ImportValue
+          Fn::Sub: "knit-${EnvironmentName}-global-artifact-store"
+      Stages:
+        - Name: "Source"
+          Actions:
+            - Name: "Source"
+              ActionTypeId:
+                Category: "Source"
+                Owner: "AWS"
+                Provider: "CodeStarSourceConnection"
+                Version: "1"
+              Configuration:
+                BranchName: !Sub "${EnvironmentName}"
+                ConnectionArn: !Sub "arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/0ba1a107-399a-4754-969b-1462737c38f6"
+                DetectChanges: "true"
+                FullRepositoryId: "knit-insights/knit-ai-video-analysis"
+                OutputArtifactFormat: "CODE_ZIP"
+              OutputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: "Build"
+          Actions:
+            - Name: "Build"
+              ActionTypeId:
+                Category: "Build"
+                Owner: "AWS"
+                Provider: "CodeBuild"
+                Version: "1"
+              Configuration:
+                ProjectName: !Sub "knit-${EnvironmentName}-ai-video-analysis-build"
+              OutputArtifacts:
+                - Name: "BuildArtifact"
+              InputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: "Deploy"
+          Actions:
+            - Name: "Deploy"
+              ActionTypeId:
+                Category: "Deploy"
+                Owner: "AWS"
+                Provider: "ECS"
+                Version: "1"
+              Configuration:
+                ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+                DeploymentTimeout: "10"
+                FileName: "imagedefinitions.json"
+                ServiceName: !Sub "knit-${EnvironmentName}-ai-video-analysis"
+              InputArtifacts:
+                - Name: "BuildArtifact"
+      ExecutionMode: "QUEUED"
+      PipelineType: "V2"

@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  NexusDomainName:
+    Type: String
+  NexusPythonRepositoryName:
+    Type: String
+  GitBranchName:
+    Type: String
+
+Resources:
+  VideoQualification:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codebuild.amazonaws.com"
+            Action: "sts:AssumeRole"
+      RoleName: !Sub "knit-${EnvironmentName}-video-qualification-code-build-role"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+      Policies:
+        - PolicyName: !Sub "knit-${EnvironmentName}-video-qualification-code-build-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-video-qualification-build"
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-video-qualification-build:*"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-*"
+                  - !Sub "arn:aws:s3:::knit-${EnvironmentName}-global-artifact-store/*"
+                  - !Sub "arn:aws:s3:::knit-${EnvironmentName}-backend-environment-files/*"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+              - Effect: "Allow"
+                Action:
+                  - "codebuild:CreateReportGroup"
+                  - "codebuild:CreateReport"
+                  - "codebuild:UpdateReport"
+                  - "codebuild:BatchPutTestCases"
+                  - "codebuild:BatchPutCodeCoverages"
+                Resource:
+                  - !Sub "arn:aws:codebuild:us-east-1:${AWS::AccountId}:report-group/knit-${EnvironmentName}-video-qualification-build-*"
+              - Effect: "Allow"
+                Action:
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                Resource:
+                  - "*"
+              - Effect: "Allow"
+                Action:
+                  - "lambda:UpdateFunctionCode"   
+                Resource:
+                  - !Sub "arn:aws:lambda:us-east-1:020587470742:function:${EnvironmentName}-knit-video-qualification-lambda"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetResourcePolicy
+                  - secretsmanager:ListSecretVersionIds
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue
+                    Fn::Sub: "knit-${EnvironmentName}-cicd-secret-manager"
+
+  VideoQualificationCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    DependsOn: VideoQualification
+    Properties:
+      Name: !Sub "knit-${EnvironmentName}-video-qualification-build"
+      ServiceRole: !GetAtt VideoQualification.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: !Sub "knit-${EnvironmentName}-video-qualification-build"
+        Packaging: NONE
+        EncryptionDisabled: false
+      Cache:
+        Type: NO_CACHE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ComputeType: BUILD_GENERAL1_SMALL
+        PrivilegedMode: true
+        ImagePullCredentialsType: CODEBUILD
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub "${AWS::AccountId}"
+            Type: PLAINTEXT
+          - Name: ENV
+            Value: !Sub "${EnvironmentName}"
+            Type: PLAINTEXT
+          - Name: AWS_REGION
+            Value: !Sub "${AWS::Region}"
+            Type: PLAINTEXT
+          - Name: NEXUS_USERNAME
+            Value: "To be updated manually"
+            Type: PLAINTEXT
+          - Name: NEXUS_PWD
+            Value: "To be updated manually"
+            Type: PLAINTEXT
+          - Name: NEXUS_DOMAIN_NAME
+            Value: !Sub "${NexusDomainName}"
+            Type: PLAINTEXT
+          - Name: NEXUS_REPOSITORY_NAME
+            Value: !Sub "${NexusPythonRepositoryName}"
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        InsecureSsl: false
+      TimeoutInMinutes: 20
+      QueuedTimeoutInMinutes: 60
+      EncryptionKey: !Sub "arn:aws:kms:us-east-1:${AWS::AccountId}:alias/aws/s3"
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+        S3Logs:
+          Status: DISABLED
+          EncryptionDisabled: false
+      Visibility: PRIVATE
+
+  VideoQualificationCodeCodePipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    DependsOn: 
+      - VideoQualificationCodeBuildProject
+    Properties:
+      Name: !Sub "knit-${EnvironmentName}-video-qualification-pipeline"
+      RoleArn: !ImportValue
+          Fn::Sub: "knit-${EnvironmentName}-code-pipeline-execution-role"
+      ArtifactStore:
+        Type: S3
+        Location: !ImportValue
+          Fn::Sub: "knit-${EnvironmentName}-global-artifact-store"
+      Stages:
+        - Name: "Source"
+          Actions:
+            - Name: "Source"
+              ActionTypeId:
+                Category: "Source"
+                Owner: "AWS"
+                Provider: "CodeStarSourceConnection"
+                Version: "1"
+              Configuration:
+                BranchName: !Sub "${GitBranchName}"
+                ConnectionArn: !Sub "arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/0ba1a107-399a-4754-969b-1462737c38f6"
+                DetectChanges: "true"
+                FullRepositoryId: "knit-insights/knit-video-qualification"
+                OutputArtifactFormat: "CODE_ZIP"
+              OutputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: "Build"
+          Actions:
+            - Name: "Build"
+              ActionTypeId:
+                Category: "Build"
+                Owner: "AWS"
+                Provider: "CodeBuild"
+                Version: "1"
+              Configuration:
+                ProjectName: !Sub "knit-${EnvironmentName}-video-qualification-build"
+              OutputArtifacts:
+                - Name: "BuildArtifact"
+              InputArtifacts:
+                - Name: "SourceArtifact"
+      ExecutionMode: "QUEUED"
+      PipelineType: "V2"

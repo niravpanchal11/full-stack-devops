@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Basic network setup with VPC and subnets, NACL, Network setup with route tables, NAT gateway, and internet gateway, Application Load Balancer with HTTP:80 listener rule"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+  VpcCidrBlock:
+    Type: String
+  AcmCertificateId:
+    Type: String
+    Description: "Root Domain ACM certificate ID"
+
+Resources:
+  NetworkingBasic:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/networking/network-basic.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcCidrBlock: !Ref VpcCidrBlock
+  NetworkConnectivity:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkingBasic
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/networking/network-connectivity.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  NetworkALB:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkConnectivity
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/networking/network-alb.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AcmCertificateId: !Ref AcmCertificateId
+  NetworkNACL:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkConnectivity
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/networking/network-nacl.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName

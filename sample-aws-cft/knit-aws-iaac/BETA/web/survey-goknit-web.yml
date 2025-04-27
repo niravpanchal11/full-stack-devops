@@ -1,0 +1,90 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Script for Fargate
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  SurveyGoknitBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "com.goknit.${EnvironmentName}-survey"
+
+  SurveyGoknitCloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    DependsOn: SurveyGoknitBucket
+    Properties:
+      OriginAccessControlConfig:
+        Name: "Survey-Go-knit-OAC"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  SurveyGoknitCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: 
+      - SurveyGoknitBucket
+      - SurveyGoknitCloudFrontOriginAccessControl
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !Sub "com.goknit.${EnvironmentName}-survey.s3.us-east-1.amazonaws.com"
+            Id: !Sub "com.goknit.${EnvironmentName}-survey"
+            OriginPath: !Sub "/${EnvironmentName}"
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt SurveyGoknitCloudFrontOriginAccessControl.Id
+        Enabled: "true"
+        DefaultRootObject: index.html
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 9
+          - ErrorCode: 403
+            ResponseCode: 403
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+        HttpVersion: http2
+        Aliases:
+          - !Sub "survey-${EnvironmentName}.goknit.com"
+        ViewerCertificate:
+          AcmCertificateArn: !Sub "arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/f528617e-cabc-4771-afb9-553d1643afc6"
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          TargetOriginId: !Sub "com.goknit.${EnvironmentName}-survey"
+          # ForwardedValues:
+          #   QueryString: true
+          #   Cookies:
+          #     Forward: none
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  SurveyGoknitBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: 
+      - SurveyGoknitBucket
+      - SurveyGoknitCloudFrontOriginAccessControl
+      - SurveyGoknitCloudFrontDistribution
+    Properties:
+      Bucket: !Ref SurveyGoknitBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "cloudfront.amazonaws.com"
+            Action: "s3:GetObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::com.goknit.${EnvironmentName}-survey/${EnvironmentName}"
+              - !Sub "arn:aws:s3:::com.goknit.${EnvironmentName}-survey/${EnvironmentName}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${SurveyGoknitCloudFrontDistribution}"

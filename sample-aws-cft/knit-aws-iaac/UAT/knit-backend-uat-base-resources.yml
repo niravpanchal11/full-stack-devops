@@ -1,0 +1,255 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: CloudFormation Script for Fargate
+Parameters:
+  RepoName:
+    Type: String
+  ECSClusterName:
+    Type: String
+  EnvFilesBucketName:
+    Type: String
+  SurveyResponseInsertionWorkerECRRepositoryName:
+    Type: String
+  InsightsFastApiRepoName:
+    Type: String
+    Default: 'knit-uat-insights-fastapi'
+  HighchartExporterRepoName:
+    Type: String
+    Default: 'knit-uat-highchart-exporter'
+  ExternalConnectECRRepositoryName:
+    Type: String
+    Default: 'knit-uat-external-connect'
+
+Resources:
+  EnvFileS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref EnvFilesBucketName
+  
+  AuthECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref RepoName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+          
+  InsightsFastApiECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref InsightsFastApiRepoName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+  
+  HighchartExporterECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref HighchartExporterRepoName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  SurveyResponseInsertionWorkerECRRepositoryUat:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref SurveyResponseInsertionWorkerECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+  ExternalConnectECRRepositoryUat:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref ExternalConnectECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+  
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ECSClusterName
+      ClusterSettings: 
+        - Name: containerInsights
+          Value: disabled
+  
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: knit-uat-ecs-taskexecution-role
+      Policies:
+        - PolicyName: knit-uat-ecs-taskexecution-role
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:DescribeRepositories
+                  - ecr:GetRepositoryPolicy
+                  - ecr:ListImages
+                  - logs:CreateLogStream
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecs:CreateCluster
+                  - ecs:DeregisterContainerInstance
+                  - ecs:DiscoverPollEndpoint
+                  - ecs:Poll
+                  - ecs:RegisterContainerInstance
+                  - ecs:StartTask
+                  - ecs:StartTelemetrySession
+                  - ecs:SubmitContainerStateChange
+                  - ecs:SubmitTaskStateChange
+                Resource:
+                  - !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/knit-backend-uat'
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListAllMyBuckets
+                Resource:
+                  - arn:aws:s3:::*
+              - Effect: Allow
+                Action:
+                  - s3:Get*
+                Resource:
+                  - !Sub "arn:aws:s3:::${EnvFileS3Bucket}"
+                  - !Sub "arn:aws:s3:::${EnvFileS3Bucket}/*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+
+  ServiceDiscoveryPrivateNameSpace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties: 
+      Description: Servie Descovery for uat ECS services
+      Name: !Join
+        - '-'
+        - - !Ref ECSClusterName
+          - 'namespace'
+      Properties: 
+        DnsProperties:
+          SOA:
+            TTL: 15
+      Vpc: vpc-074bb0b6f81390144
+
+  AutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: knit-uat-auto-scaling-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [application-autoscaling.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: knit-uat-service-autoscaling
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+              - 'application-autoscaling:*'
+              - 'cloudwatch:DescribeAlarms'
+              - 'cloudwatch:PutMetricAlarm'
+              - 'ecs:DescribeServices'
+              - 'ecs:UpdateService'
+            Resource: '*'
+
+Outputs:
+  ECSTaskExecutionRole:
+    Description: ECS Task Execution Role
+    Value: ECSTaskExecutionRole
+    Export:
+      Name: UatECSTaskExecutionRole
+  Cluster:
+    Value: ECSCluster
+    Export:
+      Name: UatECSCluster
+  EnvFileS3Bucket:
+    Value: EnvFileS3Bucket
+    Export:
+      Name: EnvFilesBucketUat

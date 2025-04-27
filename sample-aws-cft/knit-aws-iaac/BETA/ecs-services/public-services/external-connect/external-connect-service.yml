@@ -1,0 +1,300 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation Script for ECS service and Task Definition"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  BucketName:
+    Type: "String"
+  ClusterName:
+    Type: "String"
+  ContainerName:
+    Type: "String"
+  FamilyName:
+    Type: "String"
+  ServiceName:
+    Type: "String"
+  Image:
+    Type: "String"
+  TargetGroupName:
+    Type: "String"
+  ApiAccessUrl:
+    Type: "String"
+  HealthCheckPath:
+    Type: "String" 
+  Priority:
+    Type: "Number"  
+  PortMapping:
+    Type: "Number"
+
+Resources:
+  ExternalConnectServiceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      GroupDescription: External-Connect-Service-SG
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-ALB-SG"
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-insights-fast-api-internal-communication-sg"
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: !Sub "${ServiceName}-ecs-task-role"
+      Policies:
+        - PolicyName: !Sub "${ServiceName}-ecs-task-role-policy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:ListSecrets
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetResourcePolicy
+                  - secretsmanager:ListSecretVersionIds
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue
+                    Fn::Sub: "knit-${EnvironmentName}-secret-manager"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: "arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*"
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family: !Ref FamilyName
+      Cpu: 4096
+      Memory: 8192
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-task-execution-role"
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref Image
+          EnvironmentFiles: 
+            - Type: "s3"
+              Value: !Join [ "", ["arn:aws:s3:::",!Ref BucketName,"/",!Ref ServiceName,".env" ]]
+          PortMappings:
+            - ContainerPort: !Ref PortMapping
+              Protocol: tcp
+          LogConfiguration:
+              LogDriver: awslogs
+              Options:
+                awslogs-group: !Ref CloudwatchLogsGroup
+                awslogs-region: !Ref 'AWS::Region'
+                awslogs-stream-prefix: knit-beta-ecs
+  
+  CloudwatchLogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Join 
+        - '-'
+        - - ECSLogGroup
+          - !Ref 'AWS::StackName'
+      RetentionInDays: 90
+
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties: 
+      Description: Discovery Service for the Application
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+      HealthCheckCustomConfig: 
+        FailureThreshold: 1
+      Name: !Ref ServiceName
+      NamespaceId: ns-fcmspbrkfuqa57gx
+
+  PublicService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      TaskDefinition: !Ref TaskDefinition
+      Cluster: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-cluster"
+      LaunchType: FARGATE
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-1"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-2"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-3"
+          SecurityGroups:
+            - !Ref ExternalConnectServiceSG
+      LoadBalancers:
+        - ContainerName: !Ref ContainerName
+          ContainerPort: !Ref PortMapping
+          TargetGroupArn: !Ref ServiceTargetGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt DiscoveryService.Arn
+
+  ServiceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Ref TargetGroupName
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Port: !Ref PortMapping
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 25
+      HealthyThresholdCount: 10
+      UnhealthyThresholdCount: 5
+      TargetType: ip
+      TargetGroupAttributes: 
+        - Key: load_balancing.algorithm.type
+          Value: least_outstanding_requests
+
+  ServiceListenerRule:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ServiceTargetGroup
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Ref ApiAccessUrl
+      ListenerArn: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-alb-https-443-listener"
+      Priority: !Ref Priority
+
+  # Autoscalling Part
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn:
+      - PublicService
+    Properties:
+      ServiceNamespace: "ecs"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      MinCapacity: 1
+      MaxCapacity: 10
+      RoleARN: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-task-autoscaling-role"
+
+  ScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub "${ServiceName}-scale-down-policy"
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: -50
+        MetricAggregationType: "Average"
+        Cooldown: 60
+
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub "${ServiceName}-scale-up-policy"
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalLowerBound: 40
+            MetricIntervalUpperBound: 60
+            ScalingAdjustment: 50
+          - MetricIntervalLowerBound: 60
+            MetricIntervalUpperBound: 75
+            ScalingAdjustment: 70
+          - MetricIntervalLowerBound: 75
+            ScalingAdjustment: 100
+        MetricAggregationType: "Maximum"
+        Cooldown: 30
+
+  LowCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ServiceName}-low-cpu-alarm"
+      AlarmDescription: !Sub "Low CPU utilization for ${ServiceName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${ServiceName}"
+        - Name: ClusterName
+          Value: !Sub "${ClusterName}"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+
+  HighCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ServiceName}-high-cpu-alarm"
+      AlarmDescription: !Sub "High CPU utilization for ${ServiceName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${ServiceName}"
+        - Name: ClusterName
+          Value: !Sub "${ClusterName}"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleUpPolicy

@@ -1,0 +1,266 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating knit-beta-environment-resources" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+  WindowsBastionSG:
+    Type: String
+  CognitoUserPoolId:
+    Type: String
+  NexusDomainName:
+    Type: String
+  NexusPythonRepositoryName:
+    Type: String
+
+Resources:
+  SurveyResponseInsertionWorkerService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/survey-response-insertion-worker/survey-response-insertion-worker-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker"       
+        ServiceName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker"
+        QueueName: !Sub "${EnvironmentName}-survey-responses-queue"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-survey-response-insertion-worker:latest"
+        PortMapping: 80
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+  SurveyResponseInsertionWorkerPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/survey-response-insertion-worker/survey-response-insertion-worker-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  DataExchangeService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/data-exchange/data-exchange-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-data-exchange-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-data-exchange"       
+        ServiceName: !Sub "knit-${EnvironmentName}-data-exchange"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-data-exchange:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+  DataExchangePipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/data-exchange/data-exchange-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  
+  DataExchangeBlueGreenService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/data-exchange/knit-beta-data-exchange-blue-green-service.yaml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-data-exchange-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-data-exchange"       
+        ServiceName: !Sub "knit-${EnvironmentName}-data-exchange-blue-green"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-data-exchange:latest"
+        ApiAccessUrl: !Sub "data-exchange.goknit.${EnvironmentName}"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+
+  AIAnalysisService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-analysis/ai-analysis-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-analysis-plan-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-analysis-plan"
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-analysis-plan"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-analysis-plan:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+  AIAnalysisPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-analysis/ai-analysis-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  AIVideoAnalysisService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-video-analysis/ai-video-analysis-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-video-analysis-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-video-analysis"
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-video-analysis"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-video-analysis:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+  AIVideoAnalysisPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-video-analysis/ai-video-analysis-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  AIOEAnalysisService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-oe-analysis/ai-oe-analysis-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-oe-analysis-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-oe-analysis"
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-oe-analysis"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-oe-analysis:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+  AIOEAnalysisPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-oe-analysis/ai-oe-analysis-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  AISurveyGeneratorService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-survey-generator/ai-survey-generator-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-survey-generator-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-survey-generator"
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-survey-generator"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-survey-generator:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+  AISurveyGeneratorPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-survey-generator/ai-survey-generator-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  AIInsightsService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-insights/ai-insights-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-insights-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-insights"
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-insights"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-insights:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+  AIInsightsPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-insights/ai-insights-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  
+  AnalysisPlanDataExchangeService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/analysis-plan-data-exchange/knit-beta-analysis-plan-data-exchange-service-resources.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange"
+        ServiceName: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange"
+        Image: !Sub "020587470742.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-analysis-plan-data-exchange:latest"
+        PortMapping: 80
+        WindowsBastionSG: !Ref WindowsBastionSG
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+  
+  AnalysisPlanDataExchangePipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/analysis-plan-data-exchange/analysis-plan-data-exchange-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName

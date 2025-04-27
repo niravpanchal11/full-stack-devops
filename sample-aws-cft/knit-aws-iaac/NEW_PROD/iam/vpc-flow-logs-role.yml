@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: "Name of the environment"
+
+Resources:
+  VPCFlowLogRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub "knit-${EnvironmentName}-vpc-log-ingestor"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "vpc-flow-logs.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub "knit-${EnvironmentName}-vpc-flow-log-cw-logs-ingestor-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogGroups"
+                  - "logs:DescribeLogStreams"
+                Resource:
+                  - !ImportValue 
+                      Fn::Sub: "knit-${EnvironmentName}-vpc-flow-log-group-arn"
+                  - Fn::Join:
+                    - ""
+                    - - !ImportValue
+                          Fn::Sub: "knit-${EnvironmentName}-vpc-flow-log-group-arn"
+                      - ":*"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+
+Outputs:
+  VPCFlowLogRoleArn:
+    Description: "ARN of the vpc-flow-logs IAM role"
+    Value: !GetAtt VPCFlowLogRole.Arn
+    Export:
+      Name: !Sub "Knit-${EnvironmentName}-vpc-flow-log-ingestor-role-arn"

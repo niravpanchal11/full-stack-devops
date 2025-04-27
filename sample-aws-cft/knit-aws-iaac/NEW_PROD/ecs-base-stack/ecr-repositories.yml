@@ -1,0 +1,377 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  LifecyclePolicyTextParameter:
+    Type: String
+    
+Resources:
+
+  AnalysisPlanDataExchangeECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:  !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AuthServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-auth"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  InsightsFastApiServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-insights-fastapi"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  SurveyResponseInsertionWorkerServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  InsightDuplicateProjectWorkerServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-insight-duplicate-project-worker"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  ExternalConnectServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-external-connect"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  AIOEResponseAnalysisServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-ai-oe-response-analysis"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+          
+  DataExchangeServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-data-exchange"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  AIAnalysisPlanServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-ai-analysis-plan"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+  
+  AIInsightsServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-ai-insights"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  AIOEAnalysisServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-ai-oe-analysis"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  AISurveyGeneratorECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-ai-survey-generator"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+
+  AIVideoAnalysissServiceECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "knit-${EnvironmentName}-ai-video-analysis"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+      LifecyclePolicy:
+        LifecyclePolicyText: !Ref LifecyclePolicyTextParameter
+  VideoQualification:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:  !Sub "${EnvironmentName}-knit-video-qualification"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+  AiAsk:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:  !Sub "knit-${EnvironmentName}-ai-ask-knit"
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "arn:aws:iam::020587470742:user/ravi-softvan"
+                - "arn:aws:iam::020587470742:user/softvan-devops"
+                - "arn:aws:iam::020587470742:user/vishal-softvan"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload

@@ -1,0 +1,458 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  MyNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Tags:
+        - Key: Name
+          Value: !Sub "Knit-${EnvironmentName}-NACL"
+
+  AclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-private-subnet-1"
+      NetworkAclId: !Ref MyNetworkAcl
+
+  AclAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-private-subnet-2"
+      NetworkAclId: !Ref MyNetworkAcl
+
+  AclAssociation3:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-private-subnet-3"
+      NetworkAclId: !Ref MyNetworkAcl
+
+  AclAssociation4:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-1"
+      NetworkAclId: !Ref MyNetworkAcl
+
+  AclAssociation5:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-2"
+      NetworkAclId: !Ref MyNetworkAcl
+  
+  AclAssociation6:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-3"
+      NetworkAclId: !Ref MyNetworkAcl
+
+  AclEntry1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 100
+      PortRange:
+        From: 80
+        To: 80
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 2: Allow HTTP (80) - ::/0
+  AclEntry2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      Ipv6CidrBlock: ::/0
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 101
+      PortRange:
+        From: 80
+        To: 80
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 3: Allow HTTPS (443) - 0.0.0.0/0
+  AclEntry3:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 102
+      PortRange:
+        From: 443
+        To: 443
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 4: Allow HTTPS (443) - ::/0
+  AclEntry4:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      Ipv6CidrBlock: ::/0
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 103
+      PortRange:
+        From: 443
+        To: 443
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 5: Allow SSH (22) - 106.201.230.210/32
+  AclEntry5:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 106.201.230.210/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 104
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 6: Allow SSH (22) - 115.246.27.2/32
+  AclEntry6:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 115.246.27.2/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 105
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 7: Allow SSH (22) - 103.241.45.121/32
+  AclEntry7:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.241.45.121/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 106
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 8: Allow SSH (22) - 203.88.140.42/32
+  AclEntry8:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 203.88.140.42/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 107
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 9: Allow RDP (3389) - 106.201.230.210/32
+  AclEntry9:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 106.201.230.210/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 108
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 10: Allow RDP (3389) - 115.246.27.2/32
+  AclEntry10:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 115.246.27.2/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 109
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 11: Allow RDP (3389) - 103.241.45.121/32
+  AclEntry11:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.241.45.121/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 110
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 12: Allow RDP (3389) - 203.88.140.42/32
+  AclEntry12:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 203.88.140.42/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 111
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 13: Allow SSH (22) - 103.176.134.114/32
+  AclEntry13:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.176.134.114/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 112
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 14: Allow RDP (3389) - 103.176.134.114/32
+  AclEntry14:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.176.134.114/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 113
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 15: Allow SSH (22) - 103.139.69.71/32
+  AclEntry15:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.139.69.71/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 114
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 16: Allow RDP (3389) - 103.139.69.71/32
+  AclEntry16:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.139.69.71/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 115
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 17: Deny SSH (22) - 0.0.0.0/0
+  AclEntry17:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      Protocol: 6
+      RuleAction: deny
+      RuleNumber: 116
+      PortRange:
+        From: 22
+        To: 22
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 18: Deny RDP (3389) - 0.0.0.0/0
+  AclEntry18:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      Protocol: 6
+      RuleAction: deny
+      RuleNumber: 117
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 19: Allow Custom TCP (6380) - 106.201.230.210/32
+  AclEntry19:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 106.201.230.210/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 118
+      PortRange:
+        From: 6380
+        To: 6380
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 20: Allow Custom TCP (6380) - 115.246.27.2/32
+  AclEntry20:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 115.246.27.2/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 119
+      PortRange:
+        From: 6380
+        To: 6380
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 21: Allow Custom TCP (6380) - 103.241.45.121/32
+  AclEntry21:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.241.45.121/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 120
+      PortRange:
+        From: 6380
+        To: 6380
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 22: Allow Custom TCP (6380) - 203.88.140.42/32
+  AclEntry22:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 203.88.140.42/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 121
+      PortRange:
+        From: 6380
+        To: 6380
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 23: Allow Custom TCP (6381) - 106.201.230.210/32
+  AclEntry23:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 106.201.230.210/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 122
+      PortRange:
+        From: 6381
+        To: 6381
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 24: Allow Custom TCP (6381) - 115.246.27.2/32
+  AclEntry24:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 115.246.27.2/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 123
+      PortRange:
+        From: 6381
+        To: 6381
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 25: Allow Custom TCP (6381) - 103.241.45.121/32
+  AclEntry25:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 103.241.45.121/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 124
+      PortRange:
+        From: 6381
+        To: 6381
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 26: Allow Custom TCP (6381) - 203.88.140.42/32
+  AclEntry26:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 203.88.140.42/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 125
+      PortRange:
+        From: 6381
+        To: 6381
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 27: Allow RDP (3389) - 43.241.24.96/32
+  AclEntry27:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 43.241.24.96/32
+      Egress: false
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 126
+      PortRange:
+        From: 3389
+        To: 3389
+      NetworkAclId: !Ref MyNetworkAcl
+
+  # Entry 28: Allow All Traffic - 0.0.0.0/0
+  AclEntry28:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      Protocol: -1
+      RuleAction: allow
+      RuleNumber: 127
+      NetworkAclId: !Ref MyNetworkAcl
+  
+  MyNetworkAclOutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref MyNetworkAcl
+      RuleNumber: 100
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+      Protocol: "-1"  # All traffic
+      PortRange:
+        From: 0
+        To: 65535

@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS CloudFormation template for creating Redis cache clusters"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  RedisServerPassword:
+    Type: String
+
+Resources:
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: "Subnet group for ElastiCache Redis cluster"
+      SubnetIds:
+        - !ImportValue 
+            Fn::Sub: "knit-${EnvironmentName}-private-subnet-1"
+        - !ImportValue 
+            Fn::Sub: "knit-${EnvironmentName}-private-subnet-2"
+        - !ImportValue 
+            Fn::Sub: "knit-${EnvironmentName}-private-subnet-3"
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "knit-${EnvironmentName}-redis-server-sg"
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-windows-bastion-security-group"
+          IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-internal-service-error-handler-sg"
+          IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+
+  SlowLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "knit-${EnvironmentName}-elasticache-slow-logs"
+      RetentionInDays: 90
+
+  EngineLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "knit-${EnvironmentName}-elasticache-engine-logs"
+      RetentionInDays: 90
+
+  RedisReplicationGroup:
+    Type: 'AWS::ElastiCache::ReplicationGroup'
+    DependsOn: 
+      - RedisSubnetGroup
+      - RedisSecurityGroup
+      - SlowLogGroup
+      - EngineLogGroup
+    Properties:
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      ReplicationGroupDescription: !Sub "redis cluster for knit ${EnvironmentName} environment"
+      ReplicationGroupId: !Sub "knit-${EnvironmentName}-elasticache-server-node"
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: false
+      CacheNodeType: cache.t3.medium
+      Engine: redis
+      NumNodeGroups: 1
+      ReplicasPerNodeGroup: 2
+      Port: 6379
+      AuthToken: !Ref RedisServerPassword
+      TransitEncryptionEnabled: true
+      AtRestEncryptionEnabled: true
+      SnapshotRetentionLimit: 7
+      SnapshotWindow: "09:00-10:00"
+      SnapshottingClusterId: !Sub "knit-${EnvironmentName}-elasticache-server-node-002"
+      EngineVersion: 7.0
+      SecurityGroupIds:
+        - !GetAtt RedisSecurityGroup.GroupId
+      LogDeliveryConfigurations:
+        - LogType: "slow-log"
+          DestinationType: "cloudwatch-logs"
+          DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref SlowLogGroup
+          LogFormat: "json"
+        - LogType: "engine-log"
+          DestinationType: "cloudwatch-logs"
+          DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref EngineLogGroup
+          LogFormat: "json"
+      TransitEncryptionMode: "required"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-elasticache-node"
+
+Outputs:
+  RedisSecurityGroup:
+    Value: !Ref RedisSecurityGroup
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-redis-sg"

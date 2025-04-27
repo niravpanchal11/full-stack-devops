@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: "Name of the environment"
+
+Resources:
+  LambdaChildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub "knit_${EnvironmentName}_child_internal_service_error_handler_role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub "AWSLambdaBasicExecutionRole-knit-${EnvironmentName}_child_internal_service_error_handler_policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/lambda/knit_${EnvironmentName}_child_internal_service_error_handler:*"
+              - Effect: "Allow"
+                Action:
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DeleteNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                Resource: "*"
+
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                  - "sqs:ListDeadLetterSourceQueues"
+                  - "sqs:ListQueueTags"
+                  - "sqs:GetQueueUrl"
+                  - "sqs:ChangeMessageVisibility"
+                Resource:
+                  - !Sub "arn:aws:sqs:us-east-1:${AWS::AccountId}:${EnvironmentName}-retry-request-DLQ"
+                  - !Sub "arn:aws:sqs:us-east-1:${AWS::AccountId}:${EnvironmentName}-retry-request-queue"
+
+              - Effect: "Allow"
+                Action:
+                  - "elasticache:DescribeCacheClusters"
+                  - "elasticache:DescribeCacheSubnetGroups"
+                  - "elasticache:DescribeCacheParameterGroups"
+                  - "elasticache:DescribeCacheSecurityGroups"
+                  - "elasticache:DescribeReplicationGroups"
+                  - "elasticache:DescribeSnapshots"
+                  - "elasticache:CreateCacheCluster"
+                  - "elasticache:ModifyCacheCluster"
+                  - "elasticache:DeleteCacheCluster"
+                  - "elasticache:CreateReplicationGroup"
+                  - "elasticache:ModifyReplicationGroup"
+                  - "elasticache:DeleteReplicationGroup"
+                  - "elasticache:CreateSnapshot"
+                  - "elasticache:DeleteSnapshot"
+                  - "elasticache:ModifyCacheParameterGroup"
+                Resource:
+                  - !Sub "arn:aws:elasticache:us-east-1:${AWS::AccountId}:replicationgroup:knit-${EnvironmentName}-elasticache-server-node"
+
+              - Effect: "Allow"
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                Resource:
+                  - !ImportValue
+                      Fn::Sub: "knit-${EnvironmentName}-secret-manager"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+Outputs:
+  LambdaChildRole:
+    Description: "ARN of the vpc-flow-logs IAM role"
+    Value: !GetAtt LambdaChildRole.Arn
+    Export:
+      Name: !Sub "Knit-${EnvironmentName}-child-internal-service-error-handler-role-arn"

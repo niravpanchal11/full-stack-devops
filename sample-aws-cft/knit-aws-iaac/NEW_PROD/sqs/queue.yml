@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to create an SQS queue."
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  SurveyResponsesDLQ:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-survey-responses-queue-DLQ" 
+      DelaySeconds: 2
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 50
+      ReceiveMessageWaitTimeSeconds: 0
+      SqsManagedSseEnabled: true
+
+  SurveyResponsesDLQQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref SurveyResponsesDLQ
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "OwnerStatement"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "SQS:*"
+            Resource: !GetAtt SurveyResponsesDLQ.Arn
+
+  SurveyResponsesQueue:
+    Type: "AWS::SQS::Queue"
+    DependsOn: SurveyResponsesDLQ
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-survey-responses-queue"
+      DelaySeconds: 300
+      MessageRetentionPeriod: 864000
+      VisibilityTimeout: 1800
+      ReceiveMessageWaitTimeSeconds: 5
+      # KmsDataKeyReusePeriodSeconds: 300
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SurveyResponsesDLQ.Arn
+        maxReceiveCount: 10
+
+  SurveyResponsesQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref SurveyResponsesQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "OwnerStatement"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "SQS:*"
+            Resource: !GetAtt SurveyResponsesQueue.Arn
+  RetryRequestDLQ:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-retry-request-DLQ" 
+      DelaySeconds: 0
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 900
+      ReceiveMessageWaitTimeSeconds: 0
+      SqsManagedSseEnabled: true
+
+  RetryRequestDLQQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref RetryRequestDLQ
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "OwnerStatement"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "SQS:*"
+            Resource: !GetAtt RetryRequestDLQ.Arn
+
+  RetryRequestQueue:
+    Type: "AWS::SQS::Queue"
+    DependsOn: RetryRequestDLQ
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-retry-request-queue"
+      DelaySeconds: 0
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 900
+      ReceiveMessageWaitTimeSeconds: 0
+      # KmsDataKeyReusePeriodSeconds: 300
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt RetryRequestDLQ.Arn
+        maxReceiveCount: 10
+
+  RetryRequestQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref RetryRequestQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "OwnerStatement"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "SQS:*"
+            Resource: !GetAtt RetryRequestQueue.Arn
+
+  InsightDduplicateDLQ:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-project-deep-copy-queue-DLQ" 
+      DelaySeconds: 0
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 1800
+      ReceiveMessageWaitTimeSeconds: 0
+      SqsManagedSseEnabled: true
+
+  InsightDduplicateDLQQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref InsightDduplicateDLQ
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "OwnerStatement"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "SQS:*"
+            Resource: !GetAtt InsightDduplicateDLQ.Arn
+
+  InsightDduplicateQueue:
+    Type: "AWS::SQS::Queue"
+    DependsOn: InsightDduplicateDLQ
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-project-deep-copy-queue"
+      DelaySeconds: 0
+      MessageRetentionPeriod: 864000
+      VisibilityTimeout: 1800
+      ReceiveMessageWaitTimeSeconds: 5
+      # KmsDataKeyReusePeriodSeconds: 300
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InsightDduplicateDLQ.Arn
+        maxReceiveCount: 10
+
+  InsightDduplicateQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref InsightDduplicateQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "OwnerStatement"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "SQS:*"
+            Resource: !GetAtt InsightDduplicateQueue.Arn

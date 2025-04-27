@@ -1,0 +1,517 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Script for Fargate
+
+Parameters:
+  RepoName:
+    Type: String
+  SurveyResponseInsertionWorkerECRRepositoryName:
+    Type: String
+  ECSClusterName:
+    Type: String
+  EnvFilesBucketName:
+    Type: String
+  InsightDuplicateProjectWorkerRepositoryName:
+    Type: String
+    Default: 'knit-dev-duplicate-project-worker'
+  InsightsFastApiRepoName:
+    Type: String
+    Default: 'knit-dev-insights-fastapi'
+  HighchartExporterRepoName:
+    Type: String
+    Default: 'knit-dev-highchart-exporter'
+  ExternalConnectECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-external-connect'
+  AIOEResponseAnalysisECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-ai-oe-response-analysis'
+  DataExchangeServiceECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-data-exchange'
+  AIAnalysisPlanECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-ai-analysis-plan'
+  AIInsightsECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-ai-insights'
+  AIOEAnalysisECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-ai-oe-analysis'
+  AISurveyGeneratorECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-ai-survey-generator'
+  AIVideoAnalysisECRRepositoryName:
+    Type: String
+    Default: 'knit-dev-ai-video-analysis'
+  AnalysisPlanDataExchangeRepositoryName:
+    Type: String
+    Default: 'knit-dev-analysis-plan-data-exchange'
+
+    
+Resources:
+  EnvFileS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref EnvFilesBucketName
+  
+  AnalysisPlanDataExchangeECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AnalysisPlanDataExchangeRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+  
+  AnalysisPlanDataExchangeECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AnalysisPlanDataExchangeRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AIVideoAnalysisECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AIVideoAnalysisECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AuthECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref RepoName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  InsightsFastApiECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref InsightsFastApiRepoName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  HighchartExporterECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref HighchartExporterRepoName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  InsightDuplicateProjectWorkerRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref InsightDuplicateProjectWorkerRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  SurveyResponseInsertionWorkerECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref SurveyResponseInsertionWorkerECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  ExternalConnectECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref ExternalConnectECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AIOEResponseAnalysisECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AIOEResponseAnalysisECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+          
+  DataExchangeServiceECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref DataExchangeServiceECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AIAnalysisPlanServiceECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AIAnalysisPlanECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+  
+  AIInsightsServiceECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AIInsightsECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AIOEAnalysisECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AIOEAnalysisECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  AISurveyGeneratorECRRepositoryDev:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AISurveyGeneratorECRRepositoryName
+      RepositoryPolicyText:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - "*"
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ECSClusterName
+      ClusterSettings: 
+        - Name: containerInsights
+          Value: enabled
+  
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: knit-backend-dev-ecs-taskexecution-role
+      Policies:
+        - PolicyName: AmazonECSTaskExecutionRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:DescribeRepositories
+                  - ecr:GetRepositoryPolicy
+                  - ecr:ListImages
+                  - logs:CreateLogStream
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecs:CreateCluster
+                  - ecs:DeregisterContainerInstance
+                  - ecs:DiscoverPollEndpoint
+                  - ecs:Poll
+                  - ecs:RegisterContainerInstance
+                  - ecs:StartTask
+                  - ecs:StartTelemetrySession
+                  - ecs:SubmitContainerStateChange
+                  - ecs:SubmitTaskStateChange
+                Resource:
+                  - arn:aws:ecs:us-east-1:020587470742:cluster/knit-backend-dev
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListAllMyBuckets
+                Resource:
+                  - arn:aws:s3:::*
+              - Effect: Allow
+                Action:
+                  - s3:Get*
+                Resource:
+                  - !Sub "arn:aws:s3:::${EnvFileS3Bucket}"
+                  - !Sub "arn:aws:s3:::${EnvFileS3Bucket}/*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+ 
+  # AutoScalingRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: knit-dev-ecs-autoscaling-role
+  #     AssumeRolePolicyDocument:
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: [application-autoscaling.amazonaws.com]
+  #           Action: ["sts:AssumeRole"]
+  #     Policies:
+  #       - PolicyName: AutoScalingRolePolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - ecs:DescribeServices
+  #                 - ecs:UpdateService
+  #               Resource:
+  #                 - !GetAtt ECSCluster.Arn
+  
+  ServiceDiscoveryPrivateNameSpace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties: 
+      Description: Servie Descovery for dev ECS services
+      Name: !Join
+        - '-'
+        - - !Ref ECSClusterName
+          - 'namespace'
+      Properties: 
+        DnsProperties:
+          SOA:
+            TTL: 15
+      Vpc: vpc-074bb0b6f81390144
+
+  # Role that Application Auto Scaling will use to interact with CloudWatch and Amazon ECS
+  # AutoscalingRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: knit-dev-auto-scaling-role
+  #     AssumeRolePolicyDocument:
+  #       Statement:
+  #       - Effect: Allow
+  #         Principal:
+  #           Service: [application-autoscaling.amazonaws.com]
+  #         Action: ['sts:AssumeRole']
+  #     Path: /
+  #     Policies:
+  #     - PolicyName: knit-dev-auth-service-autoscaling-policy
+  #       PolicyDocument:
+  #         Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - 'application-autoscaling:*'
+  #             - 'cloudwatch:DescribeAlarms'
+  #             - 'cloudwatch:PutMetricAlarm'
+  #             - 'ecs:DescribeServices'
+  #             - 'ecs:UpdateService'
+  #           Resource: '*'
+
+Outputs:
+  ECSTaskExecutionRole:
+    Description: ECS Task Execution Role
+    Value: ECSTaskExecutionRole
+    Export:
+      Name: ECSTaskExecutionRole
+  Cluster:
+    Value: ECSCluster
+    Export:
+      Name: ECSCluster
+  EnvFileS3Bucket:
+    Value: EnvFileS3Bucket
+    Export:
+      Name: EnvFilesBucket

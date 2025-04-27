@@ -1,0 +1,45 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  EnvFileS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: StackId
+          Value: !Ref AWS::StackId
+      BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+      # PublicAccessBlockConfiguration:
+      #   BlockPublicAcls: false
+      #   IgnorePublicAcls: false
+      #   BlockPublicPolicy: false
+      #   RestrictPublicBuckets: false
+  AccessLogCloudwatchLogsGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "knit-${EnvironmentName}-backend-services-access-logs"
+      RetentionInDays: 365
+  ServiceDiscoveryPrivateNameSpace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties: 
+      Name: !Sub "${EnvironmentName}"
+      Vpc: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Properties: 
+        DnsProperties:
+          SOA:
+            TTL: 15
+
+Outputs:
+  EnvFileS3Bucket:
+    Value: !Ref EnvFileS3Bucket
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-backend-environment-files"
+  ServiceDiscoveryPrivateNameSpace:
+    Value: !GetAtt ServiceDiscoveryPrivateNameSpace.Id
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-private-namespace-id"

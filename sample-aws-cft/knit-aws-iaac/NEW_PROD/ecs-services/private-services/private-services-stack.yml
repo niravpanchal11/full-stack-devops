@@ -1,0 +1,299 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating knit-beta-environment-resources" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+  CognitoUserPoolId:
+    Type: String
+  NexusDomainName:
+    Type: String
+  NexusPythonRepositoryName:
+    Type: String
+  GitBranchName:
+    Type: String
+
+Resources:
+  AnalysisPlanDataExchange:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/analysis-plan-data-exchange/knit-prod-analysis-plan-data-exchange-bg-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ap-des-bg-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ap-des-bg"
+        ServiceName: !Sub "knit-${EnvironmentName}-ap-des-bg"
+        Image: !Sub "020587470742.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-analysis-plan-data-exchange:latest"
+        ApiAccessUrl: !Sub "ap-data-exchange-api.goknit.${EnvironmentName}"
+        PortMapping: 80
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+        TargetGroupName: !Sub "knit-${EnvironmentName}-ap-des"
+        Priority: 1
+        HealthCheckPath: "/docs"
+        GitBranchName: !Ref GitBranchName
+
+  DataExchangeService:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AnalysisPlanDataExchange
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/data-exchange/knit-prod-data-exchange-bg-service.yaml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-data-exchange-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-data-exchange"       
+        ServiceName: !Sub "knit-${EnvironmentName}-data-exchange-bg"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-data-exchange:latest"
+        ApiAccessUrl: !Sub "data-exchange-api.goknit.${EnvironmentName}"
+        PortMapping: 80
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+        HealthCheckPath: "/docs"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-data-exchng"
+        Priority: 2
+        GitBranchName: !Ref GitBranchName
+
+  AiInsights:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DataExchangeService
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-insights/knit-prod-ai-insights-bg-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-insights-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-insights"       
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-insights-bg"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-insights:latest"
+        ApiAccessUrl: !Sub "ai-insights-api.goknit.${EnvironmentName}"
+        GitRepository: "knit-insights/knit-ai-insights"
+        PortMapping: 80
+        HealthCheckPath: "/docs"
+        Priority: 3
+        TargetGroupName: !Sub "knit-${EnvironmentName}-ai-insights"
+        GitBranchName: !Ref GitBranchName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+
+  AiAnalysisPlan:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AiInsights
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-analysis-plan/knit-prod-ai-analysis-plan-bg-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-analysis-plan-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-analysis-plan"       
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-analysis-plan-bg"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-analysis-plan:latest"
+        ApiAccessUrl: !Sub "ai-analysis-plan-api.goknit.${EnvironmentName}"
+        GitRepository: "knit-insights/knit-ai-analysis-plan"
+        PortMapping: 80
+        HealthCheckPath: "/docs"
+        Priority: 4
+        TargetGroupName: !Sub "knit-${EnvironmentName}-ai-ap"
+        GitBranchName: !Ref GitBranchName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  
+  AiOeAnalysis:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AiAnalysisPlan
+    Properties:
+        TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-oe-analysis-service/knit-prod-ai-oe-analysis-bg-service.yaml"
+        Tags:
+          - Key: stackId
+            Value: !Ref AWS::StackId
+        Parameters:
+          EnvironmentName: !Ref EnvironmentName
+          BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+          ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+          ContainerName: !Sub "knit-${EnvironmentName}-ai-oe-analysis-container"
+          FamilyName: !Sub "knit-${EnvironmentName}-ai-oe-analysis"       
+          ServiceName: !Sub "knit-${EnvironmentName}-ai-oe-analysis-bg"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-oe-analysis:latest"
+          ApiAccessUrl: !Sub "ai-oe-analysis-api.goknit.${EnvironmentName}"
+          GitRepository: "knit-insights/knit-ai-oe-analysis"
+          PortMapping: 80
+          HealthCheckPath: "/docs"
+          Priority: 5
+          TargetGroupName: !Sub "knit-${EnvironmentName}-ai-oe-analysis"
+          GitBranchName: !Ref GitBranchName
+          NexusDomainName: !Ref NexusDomainName
+          NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+
+  AiSurveyGenerator:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AiOeAnalysis
+    Properties:
+        TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-survey-generator/knit-prod-ai-survey-generator-bg-service.yml"
+        Tags:
+          - Key: stackId
+            Value: !Ref AWS::StackId
+        Parameters:
+          EnvironmentName: !Ref EnvironmentName
+          BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+          ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+          ContainerName: !Sub "knit-${EnvironmentName}-ai-survey-generator-container"
+          FamilyName: !Sub "knit-${EnvironmentName}-ai-survey-generator"       
+          ServiceName: !Sub "knit-${EnvironmentName}-ai-survey-generator-bg"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-survey-generator:latest"
+          ApiAccessUrl: !Sub "ai-survey-generator-api.goknit.${EnvironmentName}"
+          GitRepository: "knit-insights/knit-ai-survey-generator"
+          PortMapping: 80
+          HealthCheckPath: "/docs"
+          Priority: 6
+          TargetGroupName: !Sub "knit-${EnvironmentName}-ai-srvy-gntr"
+          GitBranchName: !Ref GitBranchName
+          NexusDomainName: !Ref NexusDomainName
+          NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+
+  AiVideoAnalysis:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AiSurveyGenerator
+    Properties:
+        TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-video-analysis/knit-prod-ai-video-analysis-bg-service.yaml"
+        Tags:
+          - Key: stackId
+            Value: !Ref AWS::StackId
+        Parameters:
+          EnvironmentName: !Ref EnvironmentName
+          BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+          ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+          ContainerName: !Sub "knit-${EnvironmentName}-ai-video-analysis-container"
+          FamilyName: !Sub "knit-${EnvironmentName}-ai-video-analysis"       
+          ServiceName: !Sub "knit-${EnvironmentName}-ai-video-analysis-bg"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-video-analysis:latest"
+          ApiAccessUrl: !Sub " ai-video-analysis-api.goknit.${EnvironmentName}"
+          GitRepository: "knit-insights/knit-ai-video-analysis"
+          PortMapping: 80
+          HealthCheckPath: "/docs"
+          Priority: 7
+          TargetGroupName: !Sub "knit-${EnvironmentName}-ai-vdo-anls"
+          GitBranchName: !Ref GitBranchName
+          NexusDomainName: !Ref NexusDomainName
+          NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+
+  SurveyResponseInsertionWorkerService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/survey-response-insertion-worker/knit-prod-survey-response-insertion-worker-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker"       
+        ServiceName: !Sub "knit-${EnvironmentName}-survey-response-insertion-worker"
+        QueueName: !Sub "${EnvironmentName}-survey-responses-queue"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-survey-response-insertion-worker:latest"
+        PortMapping: 80
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+  
+  SurveyResponseInsertionWorkerPipeline:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SurveyResponseInsertionWorkerService
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/survey-response-insertion-worker/knit-prod-survey-response-insertion-worker-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+        GitBranchName: !Ref GitBranchName
+
+  InsightDuplicateProjectWorkerService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/insight-duplicate-project-worker/knit-prod-insight-duplicate-project-worker-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-insight-duplicate-project-worker-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-insight-duplicate-project-worker"       
+        ServiceName: !Sub "knit-${EnvironmentName}-insight-duplicate-project-worker"
+        QueueName: !Sub "${EnvironmentName}-project-deep-copy-queue"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-insight-duplicate-project-worker:latest"
+        PortMapping: 80
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+  
+  InsightDuplicateProjectWorkerPipeline:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: InsightDuplicateProjectWorkerService
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/insight-duplicate-project-worker/knit-prod-insight-duplicate-project-worker-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+        GitBranchName: !Ref GitBranchName
+
+  AiAskKnitService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-ask-knit-service/knit-prod-ai-ask-knit-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-ask-knit-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-ask"       
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-ask-knit"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-ask-knit:latest"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-ai-ask-knit-tg"
+        HealthCheckPath: "/healthcheck"
+        PortMapping: 80
+        Priority: 8
+        ApiAccessUrl: !Sub "ai-ask-knit.goknit.${EnvironmentName}"
+  
+  AiAskKnitPipeline:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AiAskKnitService
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/ai-ask-knit-service/knit-prod-ai-ask-knit-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+        GitBranchName: !Ref GitBranchName
