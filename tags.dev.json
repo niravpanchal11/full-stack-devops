@@ -1,0 +1,10 @@
+[
+    {
+        "Key": "DeployEnvironment",
+        "Value": "dev"
+    },
+    {
+        "Key": "PointOfContact",
+        "Value": "niravpanchal9980@gmail.com"
+    }
+]

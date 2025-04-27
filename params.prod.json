@@ -1,0 +1,18 @@
+[
+    {
+        "ParameterKey": "pEnvironment",
+        "ParameterValue": "prod"
+    },
+    {
+        "ParameterKey": "pBucketPrefix",
+        "ParameterValue": "prod"
+    },
+    {
+        "ParameterKey": "pRegionName",
+        "ParameterValue": "us-east-2"
+    },
+    {
+        "ParameterKey": "pAZ",
+        "ParameterValue": "us-east-2b"
+    }
+]
