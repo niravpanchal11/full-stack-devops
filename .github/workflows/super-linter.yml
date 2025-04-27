@@ -1,0 +1,31 @@
+name: Super-Linter # https://github.com/super-linter/super-linter
+
+on: # yamllint disable-line rule:truthy
+  push: 
+    branches: [master, main, qa, stage-qa, dev, develop]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [master, main, qa, stage-qa, dev, develop]
+
+permissions: {}
+
+jobs:
+  build:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+      statuses: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Super-linter
+        uses: super-linter/super-linter@v7.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEVOPS_PAT }}
