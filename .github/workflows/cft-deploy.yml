@@ -1,0 +1,105 @@
+name: Deploy CFT
+
+on: 
+  push:     
+    branches: [master, main, qa, stage-qa, dev, develop]
+
+permissions: read-all
+jobs:
+  cft-deploy:
+    name: Deploy CFT
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: cfn-lint-action
+      uses: ScottBrenner/cfn-lint-action@v2.2.9
+
+    - name: Print the CloudFormation Linter Version & Run Linter.
+      run: |
+        cfn-lint --version
+        cfn-lint -t ./template.yml -i W3002
+        
+    - name: Set env BRANCH
+      run: echo "BRANCH=$(echo $GITHUB_REF | cut -d'/' -f 3)" >> $GITHUB_ENV
+
+    - name: Set permissions for tags.*.json
+      run: |
+        chmod +r ./tags.dev.json
+        chmod +r ./tags.qa.json
+        chmod +r ./tags.prod.json
+
+    - name: Set env DEPLOYMENT_ENV and DEPLOYMENT_ROLE_ARN and S3_BUCKET
+      env: 
+        DEV_DEPLOYMENT_ROLE: ${{ vars.DEV_DEPLOYMENT_ROLE }}
+        QA_DEPLOYMENT_ROLE: ${{ vars.QA_DEPLOYMENT_ROLE }}
+        PROD_DEPLOYMENT_ROLE: ${{ vars.PROD_DEPLOYMENT_ROLE }}
+        DEV_S3_BUCKET: ${{ vars.S3_BUCKET_DEV }}
+        QA_S3_BUCKET: ${{ vars.S3_BUCKET_QA }}
+        PROD_S3_BUCKET: ${{ vars.S3_BUCKET_PROD }}
+      run: |
+         if [[ $BRANCH == 'master' || $BRANCH == 'main' ]]; then 
+          echo "DEPLOYMENT_ENV=prod" >> "$GITHUB_ENV" 
+          echo "DEPLOYMENT_ROLE_ARN=$PROD_DEPLOYMENT_ROLE" >> "$GITHUB_ENV"
+          echo "S3_BUCKET=$PROD_S3_BUCKET" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TAGS<<EOF" >> $GITHUB_ENV
+          echo $(<./tags.prod.json) >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+         elif [[ $BRANCH == 'qa' ]]; then
+          echo "DEPLOYMENT_ENV=qa" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_ROLE_ARN=$QA_DEPLOYMENT_ROLE" >> "$GITHUB_ENV"
+          echo "S3_BUCKET=$QA_S3_BUCKET" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TAGS<<EOF" >> $GITHUB_ENV
+          echo $(<./tags.qa.json) >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+         else 
+          echo "DEPLOYMENT_ENV=dev" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_ROLE_ARN=$DEV_DEPLOYMENT_ROLE" >> "$GITHUB_ENV" 
+          echo "S3_BUCKET=$DEV_S3_BUCKET" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TAGS<<EOF" >> $GITHUB_ENV
+          echo $(<./tags.dev.json) >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+         fi
+
+    - name: Configure credentials from AWS account using OIDC integration
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: ${{ env.DEPLOYMENT_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.11"
+
+    - name: Setup AWS SAM
+      uses: aws-actions/setup-sam@v2
+
+    - name: Run AWS SAM Build
+      run: sam build --use-container --template-file template.yml
+
+    - name: sam package
+      run: sam package --template-file .aws-sam/build/template.yaml --s3-bucket ${{ env.S3_BUCKET }} --output-template-file template.yml --kms-key-id alias/aws/s3
+
+    - name: Upload CloudFormation Template to S3
+      run: |
+        aws s3 sync config/ s3://codeconfig-us-east-2-${{ env.DEPLOYMENT_ENV }}/config/
+        aws s3 sync lambda/ s3://codeconfig-us-east-2-${{ env.DEPLOYMENT_ENV }}/${{ github.event.repository.name }}/lambda/ 
+        aws s3 sync lib/ s3://codeconfig-us-east-2-${{ env.DEPLOYMENT_ENV }}/${{ github.event.repository.name }}/lib/
+        aws s3 cp ./template.yml s3://${{ env.S3_BUCKET }}/${{ github.event.repository.name }}/template.yml  
+
+    - name: Deploy to AWS Cloudformation
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with: 
+        name: pipeline-${{ github.event.repository.name }}-deployment
+        template: https://s3.amazonaws.com/${{ env.S3_BUCKET }}/${{ github.event.repository.name }}/template.yml
+        parameter-overrides: file://${{ github.workspace }}/params.${{ env.DEPLOYMENT_ENV }}.json
+        changeset: --change-set-name
+        capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND, CAPABILITY_NAMED_IAM
+        no-fail-on-empty-changeset: "1"
+        tags: ${{ env.DEPLOYMENT_TAGS }}

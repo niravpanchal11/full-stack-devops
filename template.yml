@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Stack
+
+Parameters:
+  pEnvironment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - production
+      - prod
+      - stage-qa
+      - qa
+      - develop
+      - dev
+
+Resources:
+  CloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "CloudWatchLogs-Role-${pEnvironment}"
+      Description: "CloudWatch Logs Role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ["ec2.amazonaws.com"]
+            Action: ["sts:AssumeRole"]
+      Policies:
+        - PolicyName: AppLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:GetLogEvents",
+                    "logs:PutLogEvents",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:FilterLogEvents",
+                    "logs:PutRetentionPolicy"
+                  ]
+                Resource: "*"
