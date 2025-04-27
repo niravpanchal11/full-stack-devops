@@ -1,0 +1,22 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Script for Fargate
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+      ClusterSettings: 
+        - Name: containerInsights
+          Value: enabled
+
+Outputs:
+  ECSCluster:
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-ecs-cluster"

@@ -1,0 +1,914 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation Script for ECS service and Task Definition"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  Priority:
+    Type: Number
+    Default: 1
+    Description: The priority for the service
+  BucketName:
+    Type: "String"
+  ClusterName:
+    Type: "String"
+  ContainerName:
+    Type: "String"
+  FamilyName:
+    Type: "String"
+  ServiceName:
+    Type: "String"
+  Image:
+    Type: "String"
+  PortMapping:
+    Type: "Number"
+  CognitoUserPoolId:
+    Type: String
+  NexusDomainName:
+    Type: String
+  NexusPythonRepositoryName:
+    Type: String
+  ApiAccessUrl:
+    Description: Kindly enter the url which will be used to access the service.
+    Type: "String"
+  HealthCheckPath:
+    Description: Kindly enter health check path for your application
+    Type: "String"
+    Default: "/docs"
+  TargetGroupName:
+    Description: Kindly enter the name of the Target group.
+    Type: "String"
+  GitBranchName:
+    Type: String
+
+
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: !Sub "${ServiceName}-ecs-task-role"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+      Policies:
+        - PolicyName: !Sub "${ServiceName}-ecs-task-role-policy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:CompleteLifecycleAction
+                  - autoscaling:DeleteLifecycleHook
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeLifecycleHooks
+                  - autoscaling:PutLifecycleHook
+                  - autoscaling:RecordLifecycleActionHeartbeat
+                  - autoscaling:CreateAutoScalingGroup
+                  - autoscaling:CreateOrUpdateTags
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:EnableMetricsCollection
+                  - autoscaling:DescribePolicies
+                  - autoscaling:DescribeScheduledActions
+                  - autoscaling:DescribeNotificationConfigurations
+                  - autoscaling:SuspendProcesses
+                  - autoscaling:ResumeProcesses
+                  - autoscaling:AttachLoadBalancers
+                  - autoscaling:AttachLoadBalancerTargetGroups
+                  - autoscaling:PutScalingPolicy
+                  - autoscaling:PutScheduledUpdateGroupAction
+                  - autoscaling:PutNotificationConfiguration
+                  - autoscaling:PutWarmPool
+                  - autoscaling:DescribeScalingActivities
+                  - autoscaling:DeleteAutoScalingGroup
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:TerminateInstances
+                  - tag:GetResources
+                  - sns:Publish
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
+                  - elasticloadbalancing:DescribeLoadBalancerAttributes
+                  - elasticloadbalancing:DescribeTargetGroupAttributes
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - elasticloadbalancing:DescribeInstanceHealth
+                  - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+                  - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeTargetHealth
+                  - elasticloadbalancing:RegisterTargets
+                  - elasticloadbalancing:DeregisterTargets
+                  - cloudwatch:PutMetricData
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeTags
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:DescribeLogGroups
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - secretsmanager:ListSecrets
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                  - cloudwatch:PutMetricData
+                  - ses:SendEmail
+                  - ses:GetTemplate
+                  - ses:ListTemplates
+                  - ses:SendTemplatedEmail
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateGroup
+                  - cognito-idp:ListIdentityProviders
+                  - cognito-idp:CreateIdentityProvider
+                  - cognito-idp:ListUserPoolClients
+                  - cognito-idp:ListUsersInGroup
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:ListGroups
+                  - cognito-idp:DescribeIdentityProvider
+                  - cognito-idp:UpdateGroup
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:GetGroup
+                  - cognito-idp:ListUsers
+                  - cognito-idp:ForgotPassword
+                  - cognito-idp:GlobalSignOut
+                  - cognito-idp:ConfirmForgotPassword
+                  - cognito-idp:GetUser
+                  - cognito-idp:ConfirmSignUp
+                  - cognito-idp:ListDevices
+                  - cognito-idp:ListUserPools
+                  - cognito-idp:RespondToAuthChallenge
+                  - cognito-idp:UpdateUserAttributes
+                  - cognito-idp:DescribeUserPoolDomain
+                  - cognito-idp:UpdateDeviceStatus
+                  - cognito-idp:ChangePassword
+                  - cognito-idp:ConfirmDevice
+                  - cognito-idp:ResendConfirmationCode
+                Resource:
+                  - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetResourcePolicy
+                  - secretsmanager:ListSecretVersionIds
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue
+                    Fn::Sub: "knit-${EnvironmentName}-secret-manager"
+              - Effect: Allow
+                Action:
+                  - s3:ListAllMyBuckets
+                Resource:
+                  - "arn:aws:s3:::*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*"
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub "arn:aws:s3:::com.knit.${EnvironmentName}"
+                  - !Sub "arn:aws:s3:::com.knit.${EnvironmentName}/*"
+              - Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:ReceiveMessage
+                  - sqs:ListDeadLetterSourceQueues
+                  - sqs:SendMessage
+                  - sqs:ListQueueTags
+                  - sqs:GetQueueUrl
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvironmentName}-retry-request-DLQ"
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvironmentName}-retry-request-queue"
+
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref FamilyName
+      Cpu: 2048
+      Memory: 4096
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-task-execution-role"
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref Image
+          EnvironmentFiles:
+            - Type: "s3"
+              Value: !Join [ "", ["arn:aws:s3:::",!Ref BucketName,"/",!Ref ServiceName,".env" ]]
+          PortMappings:
+            - ContainerPort: !Ref PortMapping
+              Protocol: tcp
+          LogConfiguration:
+              LogDriver: awslogs
+              Options:
+                awslogs-group: !Ref CloudwatchLogsGroup
+                awslogs-region: !Ref 'AWS::Region'
+                awslogs-stream-prefix: !Sub knit-${EnvironmentName}-ecs
+
+  CloudwatchLogsGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Join
+        - "-"
+        - - ECSLogGroup
+          - !Ref "AWS::StackName"
+      RetentionInDays: 90
+
+  ApDataExchangeServiceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      GroupDescription: !Sub "knit-${EnvironmentName}-ap-data-exchange-ecs-service-sg"
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-private-alb-sg"
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-internal-service-error-handler-sg"
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+
+# Allows service to call other private services
+  AllowAccessToPrivateServicesSgRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: 
+        Fn::GetAtt:
+          - ApDataExchangeServiceSG
+          - GroupId
+      GroupId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-private-alb-sg"
+
+# Allows service to call other insights fastapi service
+  AllowAccessToInsightsFastApiServiceSgRole:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: 
+        Fn::GetAtt:
+          - ApDataExchangeServiceSG
+          - GroupId
+      GroupId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-insights-fastapi-service-sg"
+
+# Allows service to redis server
+  AllowAccessToRedisServerSgRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      SourceSecurityGroupId: 
+        Fn::GetAtt:
+          - ApDataExchangeServiceSG
+          - GroupId
+      GroupId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-redis-sg"
+
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for the Application
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: !Ref ServiceName
+      NamespaceId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-private-namespace-id"
+
+  APDataExhangeService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      TaskDefinition: !Ref Task
+      Cluster: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"
+      LaunchType: FARGATE
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-1"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-2"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-3"
+          SecurityGroups:
+            - !Ref ApDataExchangeServiceSG
+      LoadBalancers:
+        - ContainerName: !Ref ContainerName
+          ContainerPort: !Ref PortMapping
+          TargetGroupArn: !Ref ServiceBlueTargetGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt DiscoveryService.Arn
+      DeploymentController:
+        Type: CODE_DEPLOY
+
+  ServiceBlueTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join
+        - '-'
+        - - !Ref "TargetGroupName"
+          - "blue"
+          - "tg"
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Port: !Ref PortMapping
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 25
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetType: ip
+      TargetGroupAttributes: 
+        - Key: load_balancing.algorithm.type
+          Value: least_outstanding_requests
+  
+  ServiceGreenTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join
+        - '-'
+        - - !Ref "TargetGroupName"
+          - "green"
+          - "tg"
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Port: !Ref PortMapping
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 25
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetType: ip
+      TargetGroupAttributes: 
+        - Key: load_balancing.algorithm.type
+          Value: least_outstanding_requests
+
+  ServiceListenerRule:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties:
+      Actions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref ServiceBlueTargetGroup
+                Weight: 100
+              - TargetGroupArn: !Ref ServiceGreenTargetGroup
+                Weight: 0
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Ref ApiAccessUrl
+      ListenerArn: 
+        !ImportValue 
+          Fn::Sub: "knit-${EnvironmentName}-private-alb-https-80-listener"
+      Priority: !Ref Priority
+
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn:
+      - APDataExhangeService
+    Properties:
+      ServiceNamespace: "ecs"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      MinCapacity: 1
+      MaxCapacity: 10
+      RoleARN: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-task-autoscaling-role"
+
+  # Create scaling policies that describe how to scale the service up and down.
+  ScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub "${ServiceName}-scale-down-policy"
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: -50
+        MetricAggregationType: "Average"
+        Cooldown: 30
+
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub "${ServiceName}-scale-up-policy"
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalLowerBound: 40
+            MetricIntervalUpperBound: 60
+            ScalingAdjustment: 50
+          - MetricIntervalLowerBound: 60
+            MetricIntervalUpperBound: 75
+            ScalingAdjustment: 70
+          - MetricIntervalLowerBound: 75
+            ScalingAdjustment: 100
+        MetricAggregationType: "Maximum"
+        Cooldown: 60
+
+  # Create alarms to trigger the scaling policies
+  LowCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ServiceName}-low-cpu-alarm"
+      AlarmDescription: !Sub "Low CPU utilization for service ${ServiceName} in cluster ${ClusterName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${ServiceName}"
+        - Name: ClusterName
+          Value: !Sub "${ClusterName}"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+
+  HighCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${ServiceName}-high-cpu-alarm
+      AlarmDescription: !Sub "High CPU utilization for service ${ServiceName} in cluster ${ClusterName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Ref "ServiceName"
+        - Name: ClusterName
+          Value: !Ref "ClusterName"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleUpPolicy
+
+  ServiceCodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    DependsOn:
+      - APDataExhangeService
+    Properties:
+      ApplicationName: 
+        !Join [
+          "-",
+          [
+            !Ref ServiceName,
+            "cd",
+            "application"
+          ],
+        ]
+      ComputePlatform: ECS
+
+  ServiceCodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - ECSCodeDeploymentGroupRole
+      - ServiceCodeDeployApplication
+    Properties:
+      ApplicationName: !Ref ServiceCodeDeployApplication
+      DeploymentGroupName:
+        !Join [
+          "-",
+          [
+            !Ref ServiceName,
+            "cd",
+            "deployment",
+            "group"
+          ]
+        ]
+      DeploymentConfigName: CodeDeployDefault.ECSCanary10Percent5Minutes
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_REQUEST
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 180
+      DeploymentStyle:
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: BLUE_GREEN
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns: 
+                - !ImportValue 
+                    Fn::Sub: "knit-${EnvironmentName}-private-alb-https-80-listener"
+            TargetGroups:
+              - Name:
+                  Fn::GetAtt:
+                    - ServiceBlueTargetGroup
+                    - TargetGroupName
+              - Name:
+                  Fn::GetAtt:
+                    - ServiceGreenTargetGroup
+                    - TargetGroupName
+      ServiceRoleArn: !GetAtt ECSCodeDeploymentGroupRole.Arn
+      ECSServices:
+        - ClusterName:
+            !Ref ClusterName
+          ServiceName:
+            !Ref ServiceName
+
+  APDataExchangeCodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codebuild.amazonaws.com"
+            Action: "sts:AssumeRole"
+      RoleName: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-code-build-role"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+      Policies:
+        - PolicyName: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-code-build-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-analysis-plan-data-exchange-build"
+                  - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/codebuild/knit-${EnvironmentName}-analysis-plan-data-exchange-build:*"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+              - Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-*"
+                  - !Sub "arn:aws:s3:::knit-${EnvironmentName}-global-artifact-store/*"
+                  - !Sub "arn:aws:s3:::knit-${EnvironmentName}-backend-environment-files/*"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+              - Effect: "Allow"
+                Action:
+                  - "codebuild:CreateReportGroup"
+                  - "codebuild:CreateReport"
+                  - "codebuild:UpdateReport"
+                  - "codebuild:BatchPutTestCases"
+                  - "codebuild:BatchPutCodeCoverages"
+                Resource:
+                  - !Sub "arn:aws:codebuild:us-east-1:${AWS::AccountId}:report-group/knit-${EnvironmentName}-analysis-plan-data-exchange-build-*"
+              - Effect: "Allow"
+                Action:
+                  - "ecr:GetAuthorizationToken"
+                Resource:
+                  - "*"
+              - Effect: "Allow"
+                Action:
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecs:DescribeTaskDefinition"
+                  - "ecs:RegisterTaskDefinition"
+                Resource:
+                  - "*"
+              - Effect: "Allow"
+                Action:
+                  - "iam:PassRole"
+                Resource:
+                  - !GetAtt TaskRole.Arn
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/knit-${EnvironmentName}-ecs-global-task-execution-role"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetResourcePolicy
+                  - secretsmanager:ListSecretVersionIds
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue
+                    Fn::Sub: "knit-${EnvironmentName}-cicd-secret-manager"
+
+  ECSCodeDeploymentGroupRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codedeploy.amazonaws.com"
+            Action: "sts:AssumeRole"
+      RoleName: !Sub "${ServiceName}-code-deployment-group-role"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+      Policies:
+        - PolicyName: !Sub "${ServiceName}-code-deployment-group-role-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Resource:
+                  - "*"
+                Action:
+                  - "ecs:DescribeServices"
+                  - "ecs:CreateTaskSet"
+                  - "ecs:UpdateServicePrimaryTaskSet"
+                  - "ecs:DeleteTaskSet"
+                  - "elasticloadbalancing:DescribeTargetGroups"
+                  - "elasticloadbalancing:DescribeListeners"
+                  - "elasticloadbalancing:ModifyListener"
+                  - "elasticloadbalancing:DescribeRules"
+                  - "elasticloadbalancing:ModifyRule"
+                  - "lambda:InvokeFunction"
+                  - "cloudwatch:DescribeAlarms"
+                  - "sns:Publish"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+              - Effect: "Allow"
+                Resource:
+                  - "*"
+                Action:
+                  - iam:PassRole
+                Condition:
+                  StringLike:
+                    iam:PassedToService:
+                      - ecs-tasks.amazonaws.com
+
+  APDataExchangeCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    DependsOn: APDataExchangeCodeBuildRole
+    Properties:
+      Name: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-build"
+      ServiceRole: !GetAtt APDataExchangeCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-build"
+        Packaging: NONE
+        EncryptionDisabled: false
+      Cache:
+        Type: NO_CACHE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ComputeType: BUILD_GENERAL1_SMALL
+        PrivilegedMode: true
+        ImagePullCredentialsType: CODEBUILD
+        EnvironmentVariables:
+          - Name: ENV
+            Value: !Sub "${EnvironmentName}"
+            Type: PLAINTEXT
+          - Name: AWS_REGION
+            Value: !Sub "${AWS::Region}"
+            Type: PLAINTEXT
+          - Name: NEXUS_DOMAIN_NAME
+            Value: !Sub "${NexusDomainName}"
+            Type: PLAINTEXT
+          - Name: NEXUS_REPOSITORY_NAME
+            Value: !Sub "${NexusPythonRepositoryName}"
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        InsecureSsl: false
+        BuildSpec: buildspec-bg.yaml
+      TimeoutInMinutes: 15
+      QueuedTimeoutInMinutes: 60
+      EncryptionKey: !Sub "arn:aws:kms:us-east-1:${AWS::AccountId}:alias/aws/s3"
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+        S3Logs:
+          Status: DISABLED
+          EncryptionDisabled: false
+      Visibility: PRIVATE
+
+  ServiceCodePipelineRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      RoleName: !Sub "CodePipeline-${AWS::Region}-${ServiceName}-rol"
+      ManagedPolicyArns:
+        - !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-deny-unused-regions-policy"
+      Policies:
+        - PolicyName: !Sub "CodePipeline-${AWS::Region}-${ServiceName}-plcy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
+                Condition:
+                  StringEqualsIfExists:
+                    iam:PassedToService:
+                      - ecs-tasks.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetApplication
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+                Resource: '*'
+              - Effect: Allow
+                Action: 
+                  - codestar-connections:UseConnection
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:*
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - s3:*
+                  - ecs:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - opsworks:CreateDeployment
+                  - opsworks:DescribeApps
+                  - opsworks:DescribeCommands
+                  - opsworks:DescribeDeployments
+                  - opsworks:DescribeInstances
+                  - opsworks:DescribeStacks
+                  - opsworks:UpdateApp
+                  - opsworks:UpdateStack
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuildBatches
+                  - codebuild:StartBuildBatch
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - servicecatalog:ListProvisioningArtifacts
+                  - servicecatalog:CreateProvisioningArtifact
+                  - servicecatalog:DescribeProvisioningArtifact
+                  - servicecatalog:DeleteProvisioningArtifact
+                  - servicecatalog:Updatebetauct
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:DescribeImages
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - states:DescribeExecution
+                  - states:DescribeStateMachine
+                  - states:StartExecution
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - appconfig:StartDeployment
+                  - appconfig:StopDeployment
+                  - appconfig:GetDeployment
+                Resource: '*'
+              
+  ServiceCodePipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    DependsOn: 
+      - APDataExchangeCodeBuildProject
+    Properties:
+      Name: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-pipeline"
+      RoleArn: !ImportValue
+          Fn::Sub: "knit-${EnvironmentName}-code-pipeline-execution-role"
+      ArtifactStore:
+        Type: S3
+        Location: !ImportValue
+          Fn::Sub: "knit-${EnvironmentName}-global-artifact-store"
+      Stages:
+        - Name: "Source"
+          Actions:
+            - Name: "Source"
+              ActionTypeId:
+                Category: "Source"
+                Owner: "AWS"
+                Provider: "CodeStarSourceConnection"
+                Version: "1"
+              Namespace: SourceVariables
+              Configuration:
+                BranchName: !Sub "${GitBranchName}"
+                ConnectionArn: !Sub "arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/0ba1a107-399a-4754-969b-1462737c38f6"
+                DetectChanges: "true"
+                FullRepositoryId: "knit-insights/knit-analysis-plan-data-exchange-service"
+                OutputArtifactFormat: "CODE_ZIP"
+              OutputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: "Build"
+          Actions:
+            - Name: "Build"
+              ActionTypeId:
+                Category: "Build"
+                Owner: "AWS"
+                Provider: "CodeBuild"
+                Version: "1"
+              Configuration:
+                EnvironmentVariables: >-
+                  [{"name":"BRANCH_NAME","value":"#{SourceVariables.BranchName}","type":"PLAINTEXT"}]
+                ProjectName: !Sub "knit-${EnvironmentName}-analysis-plan-data-exchange-build"
+              OutputArtifacts:
+                - Name: "BuildArtifact"
+              InputArtifacts:
+                - Name: "SourceArtifact"
+        - Name: "Deploy"
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeployToECS
+                Version: 1
+              Configuration:
+                ApplicationName: !Ref ServiceCodeDeployApplication
+                DeploymentGroupName: !Ref ServiceCodeDeployDeploymentGroup
+                TaskDefinitionTemplateArtifact: BuildArtifact
+                TaskDefinitionTemplatePath: imagedefinitions.json
+                AppSpecTemplateArtifact: BuildArtifact
+                AppSpecTemplatePath: appspec.yaml
+              InputArtifacts:
+                - Name: "BuildArtifact"
+      ExecutionMode: "QUEUED"
+      PipelineType: "V2"
+
+Outputs:
+  ServiceSecurityGroup:
+    Description: Security Group ID
+    Value: !Ref ApDataExchangeServiceSG
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-data-exchange-service-sg"

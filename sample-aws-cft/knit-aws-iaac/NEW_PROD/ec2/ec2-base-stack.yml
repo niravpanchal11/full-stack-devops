@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Script for  Bastion Host
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+  WindowsBastionKeyName:
+    Type: String
+
+Resources:
+  EC2Resources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ec2/windows-bastion-host.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        WindowsBastionKeyName: !Ref WindowsBastionKeyName
+  LambdaSg:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ec2/lambda-sg.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName

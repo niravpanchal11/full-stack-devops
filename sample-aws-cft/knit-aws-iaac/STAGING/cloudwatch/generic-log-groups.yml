@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: "Name of the environment"
+
+Resources:
+  VPCFlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "knit-${EnvironmentName}-vpc-flow-logs"
+      RetentionInDays: 90
+  BackendServicesAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "knit-${EnvironmentName}-backend-services-access-logs"
+      RetentionInDays: 365
+  
+
+Outputs:
+  VPCFlowLogGroupName:
+    Description: "The name of the VPC Flow Log Group"
+    Value: !Ref VPCFlowLogGroup
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-vpc-flow-log-group-name"
+
+  VPCFlowLogGroupArn:
+    Description: "The ARN of the VPC Flow Log Group"
+    Value: !GetAtt VPCFlowLogGroup.Arn
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-vpc-flow-log-group-arn"
+  
+  BackendServicesAccessLogGroupName:
+    Description: "The name of the VPC Flow Log Group"
+    Value: !Ref BackendServicesAccessLogGroup
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-backend-services-access-log-name"
+
+  BackendServicesAccessLogGroupArn:
+    Description: "The ARN of the VPC Flow Log Group"
+    Value: !GetAtt BackendServicesAccessLogGroup.Arn
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-backend-services-access-logs-arn"

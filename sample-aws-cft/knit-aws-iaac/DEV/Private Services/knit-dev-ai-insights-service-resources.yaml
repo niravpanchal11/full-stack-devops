@@ -1,0 +1,348 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation Script for ECS service and Task Definition"
+
+Parameters:
+  BucketName:
+    Description: Kindly enter the name of the bucket containing environment files.
+    Type: "String"
+    Default: "knit-dev-backend-environment-files"
+  ClusterName:
+    Description: Kindly enter the name of ecs cluster.
+    Type: "String"
+    Default: "knit-backend-dev"
+  ContainerName:
+    Description: Kindly enter the name of the container
+    Type: "String"
+    Default: "knit-dev-ai-insights-container"
+  FamilyName:
+    Description: Kindly enter the name of the application so that it can be recognised in creating revisions
+    Type: "String"
+    Default: "knit-dev-ai-insights"
+  ServiceName:
+    Description: Kindly enter the service name
+    Type: "String"
+    Default: "knit-dev-ai-insights"
+  Image:
+    Description: Kindly enter the name of the image along with tag
+    Type: "String"
+    Default: "020587470742.dkr.ecr.us-east-1.amazonaws.com/knit-dev-ai-insights:latest"
+  PortMapping:
+    Description: Kindly enter the port number for your application
+    Type: "Number"
+    Default: "80"
+  
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: knit-dev-ai-insights-ecs-task-role
+      Policies:
+        - PolicyName: AmazonECSTaskRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:CompleteLifecycleAction
+                  - autoscaling:DeleteLifecycleHook
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeLifecycleHooks
+                  - autoscaling:PutLifecycleHook
+                  - autoscaling:RecordLifecycleActionHeartbeat
+                  - autoscaling:CreateAutoScalingGroup
+                  - autoscaling:CreateOrUpdateTags
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:EnableMetricsCollection
+                  - autoscaling:DescribePolicies
+                  - autoscaling:DescribeScheduledActions
+                  - autoscaling:DescribeNotificationConfigurations
+                  - autoscaling:SuspendProcesses
+                  - autoscaling:ResumeProcesses
+                  - autoscaling:AttachLoadBalancers
+                  - autoscaling:AttachLoadBalancerTargetGroups
+                  - autoscaling:PutScalingPolicy
+                  - autoscaling:PutScheduledUpdateGroupAction
+                  - autoscaling:PutNotificationConfiguration
+                  - autoscaling:PutWarmPool
+                  - autoscaling:DescribeScalingActivities
+                  - autoscaling:DeleteAutoScalingGroup
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:TerminateInstances
+                  - tag:GetResources
+                  - sns:Publish
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
+                  - elasticloadbalancing:DescribeLoadBalancerAttributes
+                  - elasticloadbalancing:DescribeTargetGroupAttributes
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - elasticloadbalancing:DescribeInstanceHealth
+                  - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+                  - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeTargetHealth
+                  - elasticloadbalancing:RegisterTargets
+                  - elasticloadbalancing:DeregisterTargets
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:PutMetricData
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeTags
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:DescribeLogGroups
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - secretsmanager:ListSecrets
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                  - ecs:GetTaskProtection
+                  - ecs:UpdateTaskProtection
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetResourcePolicy
+                  - secretsmanager:ListSecretVersionIds
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:knit_dev_secrete_manager-UMxdhf"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: "arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*"
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource: 
+                - "arn:aws:s3:::knit-dev-ai-insights-input-output-files"
+                - "arn:aws:s3:::knit-dev-ai-insights-input-output-files/*"
+              - Effect: Allow
+                Action:
+                  - SQS:SendMessage
+                Resource: 
+                - "arn:aws:sqs:us-east-1:020587470742:dev-retry-request-queue"
+                - "arn:aws:sqs:us-east-1:020587470742:dev-retry-request-DLQ"
+              - Effect: Allow
+                Action:
+                  - SQS:ListQueues
+                  - SQS:GetQueueAttributes
+                  - SQS:GetQueueUrl
+                  - SQS:ReceiveMessage
+                  - SQS:ListQueueTags
+                Resource: 
+                - "*"
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref FamilyName
+      Cpu: 2048
+      Memory: 4096
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/knit-backend-dev-ecs-taskexecution-role'
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref Image
+          EnvironmentFiles:
+            - Type: "s3"
+              Value:
+                !Join [
+                  "",
+                  [
+                    "arn:aws:s3:::",
+                    !Ref BucketName,
+                    "/",
+                    !Ref ServiceName,
+                    ".env",
+                  ],
+                ]
+          PortMappings:
+            - ContainerPort: !Ref PortMapping
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudwatchLogsGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: knit-dev-ecs
+
+  CloudwatchLogsGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Join
+        - "-"
+        - - ECSLogGroup
+          - !Ref "AWS::StackName"
+      RetentionInDays: 90
+
+  PrivateSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: vpc-074bb0b6f81390144
+      GroupDescription: for ecs containers
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: sg-0ed698f9c8f35d786 # knit-dev-data-exchange-service-resources-PublicSecurityGroup
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: sg-030986ef4959711c3
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: sg-024fdca9e1a48c7ec
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: sg-025882292dd1b1be5
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: sg-0871c4bbb6ac69233
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: sg-025882292dd1b1be5 # loadbalancer-sg
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for the Application
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: !Ref ServiceName
+      NamespaceId: ns-jasbuckusdlqlcnp
+
+  PrivateService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      TaskDefinition: !Ref Task
+      Cluster: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"
+      LaunchType: FARGATE
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - subnet-03f7e0d21159d4cfe
+            - subnet-0ce07f51b93037168
+          SecurityGroups:
+            - !Ref PrivateSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt DiscoveryService.Arn
+
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn:
+      - PrivateService
+    Properties:
+      ServiceNamespace: "ecs"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      MinCapacity: 1
+      MaxCapacity: 5
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/knit-dev-ecs-autoscaling-role"
+
+  # Create scaling policies that describe how to scale the service up and down.
+  ScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub knit-dev-ai-insights-${ClusterName}-${ServiceName}-scale-down
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: -50
+        MetricAggregationType: "Average"
+        Cooldown: 60
+
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub knit-dev-ai-insights-${ClusterName}-${ServiceName}-scale-up
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalLowerBound: 40
+            MetricIntervalUpperBound: 60
+            ScalingAdjustment: 50
+          - MetricIntervalLowerBound: 60
+            MetricIntervalUpperBound: 75
+            ScalingAdjustment: 50
+          - MetricIntervalLowerBound: 75
+            ScalingAdjustment: 50
+        MetricAggregationType: "Maximum"
+        Cooldown: 60
+
+  # Create alarms to trigger the scaling policies
+  LowCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub knit-dev-ai-insights-service-low-cpu-${ClusterName}-${ServiceName}
+      AlarmDescription: !Sub "Low CPU utilization for service ${ServiceName} in cluster ${ClusterName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Ref "ServiceName"
+        - Name: ClusterName
+          Value: !Ref "ClusterName"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+
+  HighCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub knit-dev-ai-insights-service-high-cpu-${ClusterName}-${ServiceName}
+      AlarmDescription: !Sub "High CPU utilization for service ${ServiceName} in cluster ${ClusterName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Ref "ServiceName"
+        - Name: ClusterName
+          Value: !Ref "ClusterName"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleUpPolicy

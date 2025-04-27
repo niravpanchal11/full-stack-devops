@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating knit-beta-environment-resources" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+
+Resources:
+  GoKnit:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/goknit-web.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  GoKnitPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/goknit-web-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  AdminLogin:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/adminlogin-web.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  AdminLoginPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/adminlogin-web-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  SurveyGoKnit:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/survey-goknit-web.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  SurveyGoKnitPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/survey-goknit-web-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName

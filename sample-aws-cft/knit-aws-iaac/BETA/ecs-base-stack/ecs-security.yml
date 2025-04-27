@@ -1,0 +1,52 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Script for Fargate
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  PortMapping:
+    Type: Number
+
+Resources:
+  InsightsFastAPIServiceInternalCommunicationSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      GroupDescription: To call services circularly
+  
+  InsightsFastAPIServiceInternalSGIngressRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref InsightsFastAPIServiceInternalCommunicationSG
+      SourceSecurityGroupId: !Ref InsightsFastAPIServiceInternalCommunicationSG
+      IpProtocol: tcp
+      FromPort: !Ref PortMapping
+      ToPort: !Ref PortMapping
+
+  DataExchangeServiceInternalCommunicationSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      GroupDescription: To call services circularly
+
+  DataExchangeServiceInternalSGIngressRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DataExchangeServiceInternalCommunicationSG
+      SourceSecurityGroupId: !Ref DataExchangeServiceInternalCommunicationSG
+      IpProtocol: tcp
+      FromPort: !Ref PortMapping
+      ToPort: !Ref PortMapping
+
+Outputs:
+  InsightsFastAPIServiceInternalCommunicationSG:
+    Value: !Ref InsightsFastAPIServiceInternalCommunicationSG
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-insights-fast-api-internal-communication-sg"
+  DataExchangeServiceInternalCommunicationSG:
+    Value: !Ref DataExchangeServiceInternalCommunicationSG
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-data-exchange-service-internal-communication-sg"

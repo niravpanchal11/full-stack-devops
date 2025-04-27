@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+  GitBranchName:
+    Type: String
+  AcmCertificateId:
+    Type: String
+  AdminLoginUrl:
+    Type: String
+  QualificationUrl:
+     Type: String
+  WebUrl:
+    Type: String
+  SurveyWebUrl:
+    Type: String
+
+Resources:
+  KnitCloudfrontLogs:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/cloudfront-logs.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  GoKnit:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KnitCloudfrontLogs
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/goknit-web.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AcmCertificateId: !Ref AcmCertificateId
+        WebUrl: !Ref WebUrl
+  GoKnitPipeline:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: GoKnit
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/goknit-web-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        GitBranchName: !Ref GitBranchName
+  AdminLogin:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KnitCloudfrontLogs
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/adminlogin-web.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AcmCertificateId: !Ref AcmCertificateId
+        AdminLoginUrl: !Ref AdminLoginUrl
+        QualificationUrl: !Ref QualificationUrl
+  AdminLoginPipeline:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AdminLogin
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/adminlogin-web-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        GitBranchName: !Ref GitBranchName
+  SurveyGoKnit:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KnitCloudfrontLogs
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/survey-goknit-web.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AcmCertificateId: !Ref AcmCertificateId
+        SurveyWebUrl: !Ref SurveyWebUrl
+  SurveyGoKnitPipeline:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SurveyGoKnit
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/survey-goknit-web-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        GitBranchName: !Ref GitBranchName

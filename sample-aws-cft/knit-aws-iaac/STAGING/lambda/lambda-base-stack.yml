@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  NexusDomainName:
+    Type: String
+  NexusPythonRepositoryName:
+    Type: String
+  GitBranchName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+    
+Resources:
+  
+  # ParentInternalRole:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/lambda/parent-internal-sg.yml"
+  #     Parameters:
+  #       EnvironmentName: !Ref EnvironmentName
+  # ChildInternalRole:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/lambda/child-internal-sg.yml"
+  #     Parameters:
+  #       EnvironmentName: !Ref EnvironmentName
+  VideoQulificationPipline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/lambda/knit-video-qulification-pipline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+        GitBranchName: !Ref GitBranchName
+  VideoQulificationSg:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/lambda/knit-video-qulification-sg.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName

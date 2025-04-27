@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating knit-beta-environment-resources" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: "beta"
+  TemplateBucketName:
+    Type: String
+    Default: "knit-beta-cloud-formation-templates"
+  VpcCidrBlock:
+    Type: String
+    Default: "10.1.0.0/16"
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: "Must be a valid CIDR block (e.g., 10.1.0.0/16)"
+  LifecyclePolicyTextParameter:
+    Type: String
+    Default: '{"rules":[{"rulePriority":1,"description":"Removes untagged images after 5 days","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":5},"action":{"type":"expire"}},{"rulePriority":2,"description":"Keep latest 5 images and delete rest","selection":{"tagStatus":"tagged","tagPrefixList":["beta"],"countType":"imageCountMoreThan","countNumber":5},"action":{"type":"expire"}}]}'
+  WindowsBastionSG:
+    Type: String
+    Default: "sg-02e971d11e9d115a1"
+  CognitoUserPoolId:
+    Type: String
+    Default: "us-east-1_5xWJGmm65"
+  NexusDomainName:
+    Type: String
+    Default: "nexus.goknit.com"
+  NexusPythonRepositoryName:
+    Type: String
+    Default: "knit-pypi-group"
+
+Resources:
+  SecretManager:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/secret/secret-manager.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  SQS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/sqs/queue.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  NetworkingMainStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/networking/networking-main-stack.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TemplateBucketName: !Ref TemplateBucketName
+        VpcCidrBlock: !Ref VpcCidrBlock
+  RedisServer:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkingMainStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/redis-server/redis-server.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  ECSCluster:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkingMainStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-cluster/ecs-cluster.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  ECSBaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ECSCluster
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-base-stack/ecs-base-stack.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TemplateBucketName: !Ref TemplateBucketName
+        LifecyclePolicyTextParameter: !Ref LifecyclePolicyTextParameter
+  ECSPrivateServicesStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+      - ECSCluster
+      - SecretManager
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/private-services/private-services-stack.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TemplateBucketName: !Ref TemplateBucketName
+        WindowsBastionSG: !Ref WindowsBastionSG
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  ECSPublicServicesStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+      - ECSCluster
+      - SecretManager
+      - RedisServer
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/public-services-stack.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TemplateBucketName: !Ref TemplateBucketName
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  WebStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/web/web-main-stack.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TemplateBucketName: !Ref TemplateBucketName
+  route53:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/route53/route_53_root.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        TemplateBucketName: !Ref TemplateBucketName

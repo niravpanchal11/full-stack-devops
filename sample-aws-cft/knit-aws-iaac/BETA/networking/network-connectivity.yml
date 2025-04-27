@@ -1,0 +1,228 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Network setup with route tables, NAT gateway, and internet gateway"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: "Name of the environment"
+
+Conditions:
+  IsProdEnvironment: !Equals [ !Ref "EnvironmentName", "prod" ]
+
+Resources:
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-igw"
+
+  IGAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      InternetGatewayId: !Ref "InternetGateway"
+
+  NatGatewayElasticIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt NatGatewayElasticIP1.AllocationId
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-1"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-nat-1"
+
+  NatGatewayElasticIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+    Condition: IsProdEnvironment
+
+  NatGateway2:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt NatGatewayElasticIP2.AllocationId
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-2"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-nat-2"
+    Condition: IsProdEnvironment
+
+  NatGatewayElasticIP3:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+    Condition: IsProdEnvironment
+
+  NatGateway3:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt NatGatewayElasticIP3.AllocationId
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-3"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-nat-3"
+    Condition: IsProdEnvironment
+
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-public-rt"
+
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: "IGAttachment"
+    Properties:
+       RouteTableId: !Ref "PublicRouteTable"
+       DestinationCidrBlock: "0.0.0.0/0"
+       GatewayId: !Ref "InternetGateway"
+
+  PublicSubnet1RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-1"
+      RouteTableId: !Ref "PublicRouteTable"
+
+  PublicSubnet2RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-2"
+      RouteTableId: !Ref "PublicRouteTable"
+
+  PublicSubnet3RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-public-subnet-3"
+      RouteTableId: !Ref "PublicRouteTable"
+
+  PrivateRouteTable1:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-private-rt-1"
+
+  PrivateRouteTable2:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-private-rt-2"
+
+  PrivateRouteTable3:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "knit-${EnvironmentName}-private-rt-3"
+
+  PrivateRoute1:
+    Type: "AWS::EC2::Route"
+    Properties:
+      NatGatewayId: !Ref "NatGateway1"
+      RouteTableId: !Ref "PrivateRouteTable1"
+      DestinationCidrBlock: "0.0.0.0/0"
+
+  PrivateRoute2:
+    Type: "AWS::EC2::Route"
+    Properties:
+      NatGatewayId: !If [IsProdEnvironment, !Ref "NatGateway2", !Ref "NatGateway1"]
+      RouteTableId: !Ref "PrivateRouteTable2"
+      DestinationCidrBlock: "0.0.0.0/0"
+
+  PrivateRoute3:
+    Type: "AWS::EC2::Route"
+    Properties:
+      NatGatewayId: !If [IsProdEnvironment, !Ref "NatGateway3", !Ref "NatGateway1"]
+      RouteTableId: !Ref "PrivateRouteTable3"
+      DestinationCidrBlock: "0.0.0.0/0"
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-private-subnet-1"
+      RouteTableId: !Ref "PrivateRouteTable1"
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-private-subnet-2"
+      RouteTableId: !Ref "PrivateRouteTable2"
+
+  PrivateSubnet3RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-private-subnet-3"
+      RouteTableId: !Ref "PrivateRouteTable3"
+
+Outputs:
+  InternetGatewayId:
+    Value: !Ref "InternetGateway"
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-internet-gateway"
+
+  NatGatewayId1:
+    Value: !Ref "NatGateway1"
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-natgateway-1"
+    Condition: IsProdEnvironment
+
+  NatGatewayId2:
+    Value: !Ref "NatGateway2"
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-natgateway-2"
+    Condition: IsProdEnvironment
+
+  NatGatewayId3:
+    Value: !Ref "NatGateway3"
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-natgateway-3"
+    Condition: IsProdEnvironment
+
+  PublicRouteTableId:
+    Value: !Ref "PublicRouteTable"
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-public-route-table"
+
+  PrivateRouteTable1Id:
+    Value: !Ref "PrivateRouteTable1"
+    Condition: IsProdEnvironment
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-private-route-table-1"
+
+  PrivateRouteTable2Id:
+    Value: !Ref "PrivateRouteTable2"
+    Condition: IsProdEnvironment
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-private-route-table-2"
+
+  PrivateRouteTable3Id:
+    Value: !Ref "PrivateRouteTable3"
+    Condition: IsProdEnvironment
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-private-route-table-3"

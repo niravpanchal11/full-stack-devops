@@ -1,0 +1,443 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation Script for ECS service and Task Definition"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  BucketName:
+    Type: "String"
+  ClusterName:
+    Type: "String"
+  ContainerName:
+    Type: "String"
+  FamilyName:
+    Type: "String"
+  ServiceName:
+    Type: "String"
+  Image:
+    Type: "String"
+  TargetGroupName:
+    Type: "String"
+  PortMapping:
+    Type: "Number"
+  HealthCheckPath:
+    Type: "String"
+  Priority:
+    Type: "Number"
+  ApiAccessUrl:
+    Type: "String"
+  CognitoUserPoolId:
+    Type: String
+
+Resources:
+  InsightsFastAPIServiceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      GroupDescription: Insights-Fast-API-Service-SG
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "Knit-${EnvironmentName}-ALB-SG"
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-insights-fast-api-internal-communication-sg"
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+        - SourceSecurityGroupId: sg-0539d1793e9e925d6
+          IpProtocol: tcp
+          FromPort: !Ref PortMapping
+          ToPort: !Ref PortMapping
+
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: !Sub "${ServiceName}-ecs-task-role"
+      Policies:
+        - PolicyName: !Sub "${ServiceName}-ecs-task-role-policy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeTags
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:DescribeLogGroups
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - secretsmanager:ListSecrets
+                  - cloudwatch:PutMetricData
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                  - sns:Publish
+                  - ses:SendEmail
+                  - ses:GetTemplate
+                  - ses:ListTemplates
+                  - ses:SendTemplatedEmail
+                  - autoscaling:CompleteLifecycleAction
+                  - autoscaling:DeleteLifecycleHook
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeLifecycleHooks
+                  - autoscaling:PutLifecycleHook
+                  - autoscaling:RecordLifecycleActionHeartbeat
+                  - autoscaling:CreateAutoScalingGroup
+                  - autoscaling:CreateOrUpdateTags
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:EnableMetricsCollection
+                  - autoscaling:DescribePolicies
+                  - autoscaling:DescribeScheduledActions
+                  - autoscaling:DescribeNotificationConfigurations
+                  - autoscaling:SuspendProcesses
+                  - autoscaling:ResumeProcesses
+                  - autoscaling:AttachLoadBalancers
+                  - autoscaling:AttachLoadBalancerTargetGroups
+                  - autoscaling:PutScalingPolicy
+                  - autoscaling:PutScheduledUpdateGroupAction
+                  - autoscaling:PutNotificationConfiguration
+                  - autoscaling:PutWarmPool
+                  - autoscaling:DescribeScalingActivities
+                  - autoscaling:DeleteAutoScalingGroup
+                  - elasticloadbalancing:DescribeLoadBalancerAttributes
+                  - elasticloadbalancing:DescribeTargetGroupAttributes
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - elasticloadbalancing:DescribeInstanceHealth
+                  - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+                  - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeTargetHealth
+                  - elasticloadbalancing:RegisterTargets
+                  - elasticloadbalancing:DeregisterTargets
+                  - ecs:GetTaskProtection
+                  - ecs:UpdateTaskProtection
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateGroup
+                  - cognito-idp:ListIdentityProviders
+                  - cognito-idp:CreateIdentityProvider
+                  - cognito-idp:ListUserPoolClients
+                  - cognito-idp:ListUsersInGroup
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:ListGroups
+                  - cognito-idp:DescribeIdentityProvider
+                  - cognito-idp:UpdateGroup
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:GetGroup
+                  - cognito-idp:ListUsers
+                  - cognito-idp:ForgotPassword
+                  - cognito-idp:GlobalSignOut
+                  - cognito-idp:ConfirmForgotPassword
+                  - cognito-idp:GetUser
+                  - cognito-idp:ConfirmSignUp
+                  - cognito-idp:ListDevices
+                  - cognito-idp:ListUserPools
+                  - cognito-idp:RespondToAuthChallenge
+                  - cognito-idp:UpdateUserAttributes
+                  - cognito-idp:DescribeUserPoolDomain
+                  - cognito-idp:UpdateDeviceStatus
+                  - cognito-idp:ChangePassword
+                  - cognito-idp:ConfirmDevice
+                  - cognito-idp:ResendConfirmationCode
+                Resource:
+                  - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}"
+              - Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:ReceiveMessage
+                  - secretsmanager:GetSecretValue
+                  - sqs:ListDeadLetterSourceQueues
+                  - sqs:PurgeQueue
+                  - sqs:SendMessage
+                  - sqs:ListQueueTags
+                  - sqs:GetQueueUrl
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvironmentName}-survey-responses-queue"
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvironmentName}-survey-responses-queue-DLQ"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetResourcePolicy
+                  - secretsmanager:ListSecretVersionIds
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue
+                    Fn::Sub: "knit-${EnvironmentName}-secret-manager"
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*:*"
+              - Effect: Allow
+                Action:
+                  - s3:ListAllMyBuckets
+                Resource:
+                  - "arn:aws:s3:::*"
+              - Effect: Allow
+                Action:
+                  - ec2:Describe*
+                Resource:
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - arn:aws:s3:::com.knit.prod/*
+                  - arn:aws:s3:::com.knit.prod
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*"
+              - Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:ReceiveMessage
+                  - sqs:ListDeadLetterSourceQueues
+                  - sqs:SendMessage
+                  - sqs:ListQueueTags
+                  - sqs:GetQueueUrl
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvironmentName}-retry-request-DLQ"
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvironmentName}-retry-request-queue"
+
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref FamilyName
+      Cpu: 2048
+      Memory: 4096
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-task-execution-role"
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref Image
+          EnvironmentFiles:
+            - Type: "s3"
+              Value: !Join [ "", ["arn:aws:s3:::",!Ref BucketName,"/",!Ref ServiceName,".env" ]]
+          PortMappings:
+            - ContainerPort: !Ref PortMapping
+              Protocol: tcp
+          LogConfiguration:
+              LogDriver: awslogs
+              Options:
+                awslogs-group: !Ref CloudwatchLogsGroup
+                awslogs-region: !Ref 'AWS::Region'
+                awslogs-stream-prefix: knit-beta-ecs
+  
+  CloudwatchLogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Join 
+        - '-'
+        - - ECSLogGroup
+          - !Ref 'AWS::StackName'
+      RetentionInDays: 90
+
+  DiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: Discovery Service for the Application
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - TTL: 60
+            Type: A
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: !Ref ServiceName
+      NamespaceId: ns-fcmspbrkfuqa57gx
+
+  PublicService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      TaskDefinition: !Ref TaskDefinition
+      Cluster: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-cluster"
+      LaunchType: FARGATE
+      DesiredCount: 2
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-1"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-2"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-private-subnet-3"
+          SecurityGroups:
+            - !Ref InsightsFastAPIServiceSG
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-insights-fast-api-internal-communication-sg"
+            - !ImportValue
+              Fn::Sub: "knit-${EnvironmentName}-data-exchange-service-internal-communication-sg"
+      LoadBalancers:
+        - ContainerName: !Ref ContainerName
+          ContainerPort: !Ref PortMapping
+          TargetGroupArn: !Ref ServiceTargetGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt DiscoveryService.Arn
+
+  ServiceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Ref TargetGroupName
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"
+      Port: !Ref PortMapping
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 25
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetType: ip
+      TargetGroupAttributes: 
+        - Key: load_balancing.algorithm.type
+          Value: least_outstanding_requests
+
+  ServiceListenerRule:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ServiceTargetGroup
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Ref ApiAccessUrl
+      ListenerArn: !ImportValue 
+        Fn::Sub: "knit-${EnvironmentName}-alb-https-443-listener"
+      Priority: !Ref Priority
+
+  # Autoscalling Part
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn:
+      - PublicService
+    Properties:
+      ServiceNamespace: "ecs"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      MinCapacity: 2
+      MaxCapacity: 5
+      RoleARN: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-ecs-task-autoscaling-role"
+
+  ScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub "${ServiceName}-scale-down-policy"
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: -50
+        MetricAggregationType: "Average"
+        Cooldown: 60
+
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
+    Properties:
+      PolicyName: !Sub "${ServiceName}-scale-up-policy"
+      PolicyType: StepScaling
+      ResourceId: !Sub "service/${ClusterName}/${ServiceName}"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        StepAdjustments:
+          - MetricIntervalLowerBound: 40
+            MetricIntervalUpperBound: 60
+            ScalingAdjustment: 50
+          - MetricIntervalLowerBound: 60
+            MetricIntervalUpperBound: 75
+            ScalingAdjustment: 50
+          - MetricIntervalLowerBound: 75
+            ScalingAdjustment: 50
+        MetricAggregationType: "Maximum"
+        Cooldown: 60
+
+  LowCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ServiceName}-low-cpu-alarm"
+      AlarmDescription: !Sub "Low CPU utilization for ${ServiceName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${ServiceName}"
+        - Name: ClusterName
+          Value: !Sub "${ClusterName}"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+
+  HighCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ServiceName}-high-cpu-alarm"
+      AlarmDescription: !Sub "High CPU utilization for ${ServiceName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${ServiceName}"
+        - Name: ClusterName
+          Value: !Sub "${ClusterName}"
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleUpPolicy
+
+Outputs:
+  InsightsFastAPIServiceSG:
+    Value: !Ref InsightsFastAPIServiceSG
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-insights-fast-api-service-sg"
+      

@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating a Route 53 Hosted Zone"
+Parameters:
+  EnvironmentName:
+    Type: String
+Resources:
+  PrivateHostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      HostedZoneConfig:
+        Comment: !Sub 'Hosted zone for goknit.${EnvironmentName}'
+      Name: !Sub 'goknit.${EnvironmentName}'
+      VPCs:
+        - VpcId: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-vpc"
+          VPCRegion:  !Sub "${AWS::Region}"
+  # PrivateHostedZoneDNSRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     HostedZoneName: !Ref 'PrivateHostedZone'
+  #     Comment: DNS name for PrivateHostedZone
+      
+  #     Type: A
+  #     TTL: 900
+  #     ResourceRecords:
+  #     - Fn::Sub ""

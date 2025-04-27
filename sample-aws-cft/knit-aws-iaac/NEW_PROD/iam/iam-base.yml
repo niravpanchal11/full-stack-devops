@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: "prod"
+  TemplateBucketName:
+    Type: String
+    
+Resources:
+  RegionRestrictPolicy:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/iam/region-restrict-policy.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  VpcFlowLogsRole:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: RegionRestrictPolicy
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/iam/vpc-flow-logs-role.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+  ParentInternalRole:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/iam/parent-internal-sg.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName

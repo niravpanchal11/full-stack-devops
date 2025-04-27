@@ -1,0 +1,101 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  AcmCertificateId:
+    Type: String
+    Description: "Root Domain ACM certificate ID"
+
+Resources:
+  GoknitBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "com.goknit.${EnvironmentName}"
+
+  GoknitCloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    DependsOn: GoknitBucket
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "knit-${EnvironmentName}-go-knit-ui-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  GoknitCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - GoknitBucket
+      - GoknitCloudFrontOriginAccessControl
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !Sub "com.goknit.${EnvironmentName}.s3.us-east-1.amazonaws.com"
+            Id: !Sub "com.goknit.${EnvironmentName}"
+            OriginPath: !Sub "/${EnvironmentName}"
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt GoknitCloudFrontOriginAccessControl.Id
+        Enabled: "true"
+        Logging:
+          IncludeCookies: false
+          Bucket: !ImportValue
+            Fn::Sub: "knit-${EnvironmentName}-cloudfront-logs-bucket-domain-name"
+          Prefix: !Sub "knit-${EnvironmentName}-knit-insights-ui"
+        DefaultRootObject: index.html
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 9
+          - ErrorCode: 403
+            ResponseCode: 403
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+        HttpVersion: http2
+        Aliases:
+          - !Sub "${EnvironmentName}.goknit.com"
+          - "app.goknit.com"
+        ViewerCertificate:
+          AcmCertificateArn: !Sub "arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/${AcmCertificateId}"
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          TargetOriginId: !Sub "com.goknit.${EnvironmentName}"
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+
+
+  GoknitBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: 
+      - GoknitBucket
+      - GoknitCloudFrontOriginAccessControl
+      - GoknitCloudFrontDistribution
+    Properties:
+      Bucket: !Ref GoknitBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "cloudfront.amazonaws.com"
+            Action: "s3:GetObject"
+            Resource: 
+              - !Sub "arn:aws:s3:::com.goknit.${EnvironmentName}/${EnvironmentName}"
+              - !Sub "arn:aws:s3:::com.goknit.${EnvironmentName}/${EnvironmentName}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${GoknitCloudFrontDistribution}"
+
+Outputs: 
+  InsightGoknitCloudFrontDistributionId:
+    Value: !GetAtt GoknitCloudFrontDistribution.Id
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-insights-cloudfront-distribution-id"

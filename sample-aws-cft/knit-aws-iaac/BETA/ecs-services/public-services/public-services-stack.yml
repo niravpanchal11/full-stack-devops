@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "AWS CloudFormation template for creating knit-beta-environment-resources" 
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  TemplateBucketName:
+    Type: String
+  CognitoUserPoolId:
+    Type: String
+  NexusDomainName:
+    Type: String
+  NexusPythonRepositoryName:
+    Type: String
+
+Resources:
+  InsightsFastAPIService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/insights-fastapi/insights-fastapi-service.yaml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-insights-fastapi-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-insights-fastapi"       
+        ServiceName: !Sub "knit-${EnvironmentName}-insights-fastapi"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-insights-fastapi:latest"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-insights-fastapi-tg"
+        HealthCheckPath: "/api/docs"
+        PortMapping: 80
+        Priority: 6
+        ApiAccessUrl: !Sub "api-${EnvironmentName}.goknit.com"
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+
+  InsightsFastAPIBlueGreenService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/insights-fastapi/knit-beta-insights-fastapi-blue-green-service.yaml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-insights-fastapi-blue-green-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-insights-fastapi-blue-green"       
+        ServiceName: !Sub "knit-${EnvironmentName}-insights-fastapi-blue-green"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-insights-fastapi:latest"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-insights-api"
+        HealthCheckPath: "/api/docs"
+        PortMapping: 80
+        Priority: 1
+        ApiAccessUrl: !Sub "api-${EnvironmentName}.goknit.com"
+        GitRepository : "knit-insights/knit-insights-fastapi"
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+
+  InsightsFastapiPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/insights-fastapi/insights-fastapi-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  AuthService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/backend-auth/backend-auth-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-auth-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-auth"       
+        ServiceName: !Sub "knit-${EnvironmentName}-auth"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-auth:latest"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-auth-tg"
+        HealthCheckPath: "/health/health-check"
+        PortMapping: 80
+        Priority: 2
+        ApiAccessUrl: !Sub "authapi-${EnvironmentName}.goknit.com"
+        CognitoUserPoolId: !Ref CognitoUserPoolId
+  AuthPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/backend-auth/backend-auth-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  ExternalConnectService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/external-connect/external-connect-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-external-connect-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-external-connect"       
+        ServiceName: !Sub "knit-${EnvironmentName}-external-connect"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-external-connect:latest"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-external-connect-tg"
+        ApiAccessUrl: !Sub "externalconnectapi-${EnvironmentName}.goknit.com"
+        HealthCheckPath: "/docs"
+        Priority: 3
+        PortMapping: 80
+  ExternalConnectPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/external-connect/external-connect-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        NexusDomainName: !Ref NexusDomainName
+        NexusPythonRepositoryName: !Ref NexusPythonRepositoryName
+  AIOEResponseAnalysisService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/ai-oe-response-analysis/ai-oe-response-analysis-service.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        BucketName: !Sub "knit-${EnvironmentName}-backend-environment-files"
+        ClusterName: !Sub "knit-${EnvironmentName}-backend-cluster"
+        ContainerName: !Sub "knit-${EnvironmentName}-ai-oe-response-analysis-container"
+        FamilyName: !Sub "knit-${EnvironmentName}-ai-oe-response-analysis"       
+        ServiceName: !Sub "knit-${EnvironmentName}-ai-oe-response-analysis"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/knit-${EnvironmentName}-ai-oe-response-analysis:latest"
+        TargetGroupName: !Sub "knit-${EnvironmentName}-ai-oe-response-tg"
+        ApiAccessUrl: !Sub "aioeresponseanalysis-${EnvironmentName}.goknit.com"
+        HealthCheckPath: "/healthcheck"
+        Priority: 4
+        PortMapping: 80
+  AIOEResponseAnalysisPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.amazonaws.com/ecs-services/public-services/ai-oe-response-analysis/ai-oe-response-analysis-pipeline.yml"
+      Tags:
+        - Key: stackId
+          Value: !Ref AWS::StackId
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName

@@ -1,0 +1,13 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  EnvironmentName:
+    Type: String
+
+Resources:
+  KnitVideoQulificationSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue
+        Fn::Sub: "knit-${EnvironmentName}-vpc"  
+      GroupDescription: !Sub "knit-${EnvironmentName}-video-qulification-lambda-sg"

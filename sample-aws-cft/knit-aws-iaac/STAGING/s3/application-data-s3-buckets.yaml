@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+Resources:
+  GlobalApplicationDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "com.knit.${EnvironmentName}"
+          
+Outputs:
+  GlobalApplicationDataBucket:
+    Description: Application data bucket arn
+    Value: !GetAtt GlobalApplicationDataBucket.Arn
+    Export:
+      Name: !Sub "knit-${EnvironmentName}-application-data-bucket"
