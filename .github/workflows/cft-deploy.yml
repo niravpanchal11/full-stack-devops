@@ -1,33 +1,71 @@
-name: Deploy CFT
+name: Deploy Cloudformation
 
-on: 
-  push:     
-    branches: [master, main, qa, stage-qa, dev, develop]
+# on: 
+#   push:     
+#     branches: [master, main, qa, stage-qa, dev, develop]
+
+on:
+  push:
+    branches:
+      - dev
+      - develop
+      - qa
+      - main
+      - master
+    paths-ignore:
+      - 'docs/**'
+      - 'design/**'
+      - '*.md'
 
 permissions: read-all
 jobs:
-  cft-deploy:
-    name: Deploy CFT
+  ENV:
+    runs-on: ubuntu-latest
+    outputs:
+      EnvDate: ${{steps.getDate.outputs.date}}
+      Env: ${{steps.getEnvironment.outputs.environment_name}}
+    steps:
+      - name: Get Date
+        id: getDate
+        run: echo "::set-output name=date::$(/bin/date -u "+%Y%m%d%H")"
+        shell: bash
+      - name: environment
+        id: getEnvironment
+        env:
+          BRANCH: ${{github.ref_name}}
+          PRD_BRANCH: main
+          QA_BRANCH: qa
+        run: |
+          case "$BRANCH" in
+            "$PRD_BRANCH") echo "::set-output name=environment_name::prd" ;;
+            "$QA_BRANCH") echo "::set-output name=environment_name::qa" ;;
+            *) echo "::set-output name=environment_name::dev" ;;
+          esac
+        shell: bash
+
+  DeployCloudformation:
+    name: Deploy Cloudformation
+    needs: [ENV]
+    environment: ${{needs.ENV.outputs.Env}}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-
+    
     - name: cfn-lint-action
       uses: ScottBrenner/cfn-lint-action@v2.2.9
-
-    - name: Print the CloudFormation Linter Version & Run Linter.
+      
+    - name: Print the Cloud Formation Linter Version & run Linter.
       run: |
         cfn-lint --version
         cfn-lint -t ./template.yml -i W3002
         
     - name: Set env BRANCH
       run: echo "BRANCH=$(echo $GITHUB_REF | cut -d'/' -f 3)" >> $GITHUB_ENV
-
+    
     - name: Set permissions for tags.*.json
       run: |
         chmod +r ./tags.dev.json
@@ -36,9 +74,9 @@ jobs:
 
     - name: Set env DEPLOYMENT_ENV and DEPLOYMENT_ROLE_ARN and S3_BUCKET
       env: 
-        DEV_DEPLOYMENT_ROLE: ${{ vars.DEV_DEPLOYMENT_ROLE }}
-        QA_DEPLOYMENT_ROLE: ${{ vars.QA_DEPLOYMENT_ROLE }}
-        PROD_DEPLOYMENT_ROLE: ${{ vars.PROD_DEPLOYMENT_ROLE }}
+        DEV_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_DEV }}
+        QA_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_QA }}
+        PROD_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_PROD }}
         DEV_S3_BUCKET: ${{ vars.S3_BUCKET_DEV }}
         QA_S3_BUCKET: ${{ vars.S3_BUCKET_QA }}
         PROD_S3_BUCKET: ${{ vars.S3_BUCKET_PROD }}
@@ -67,39 +105,40 @@ jobs:
          fi
 
     - name: Configure credentials from AWS account using OIDC integration
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ env.DEPLOYMENT_ROLE_ARN }}
-        aws-region: ${{ vars.AWS_REGION }}
+        role-to-assume: ${{env.DEPLOYMENT_ROLE_ARN}}
+        aws-region: ${{vars.AWS_REGION}}
 
     - name: Setup Python
       uses: actions/setup-python@v3
+      continue-on-error: true      
       with:
-        python-version: "3.11"
+        python-version: 3.12
+        cache: 'pip'
 
     - name: Setup AWS SAM
       uses: aws-actions/setup-sam@v2
 
     - name: Run AWS SAM Build
       run: sam build --use-container --template-file template.yml
-
+      
     - name: sam package
-      run: sam package --template-file .aws-sam/build/template.yaml --s3-bucket ${{ env.S3_BUCKET }} --output-template-file template.yml --kms-key-id alias/aws/s3
+      run: sam package --template-file .aws-sam/build/template.yaml --s3-bucket ${{env.S3_BUCKET}} --output-template-file template.yml --kms-key-id alias/aws/s3
 
     - name: Upload CloudFormation Template to S3
       run: |
-        aws s3 sync config/ s3://codeconfig-us-east-2-${{ env.DEPLOYMENT_ENV }}/config/
-        aws s3 sync lambda/ s3://codeconfig-us-east-2-${{ env.DEPLOYMENT_ENV }}/${{ github.event.repository.name }}/lambda/ 
-        aws s3 sync lib/ s3://codeconfig-us-east-2-${{ env.DEPLOYMENT_ENV }}/${{ github.event.repository.name }}/lib/
-        aws s3 cp ./template.yml s3://${{ env.S3_BUCKET }}/${{ github.event.repository.name }}/template.yml  
+        aws s3 sync config/ s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/config/
+        aws s3 sync glue/ s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/glue/      
+        aws s3 sync lambda/ s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/lambda/ 
+        aws s3 cp ./template.yml s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/template.yml  
 
     - name: Deploy to AWS Cloudformation
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with: 
-        name: pipeline-${{ github.event.repository.name }}-deployment
-        template: https://s3.amazonaws.com/${{ env.S3_BUCKET }}/${{ github.event.repository.name }}/template.yml
-        parameter-overrides: file://${{ github.workspace }}/params.${{ env.DEPLOYMENT_ENV }}.json
-        changeset: --change-set-name
+        name: pipeline-${{github.event.repository.name}}-deployment
+        template: https://s3.amazonaws.com/${{env.S3_BUCKET}}/${{github.event.repository.name}}/template.yml
+        parameter-overrides: file://${{github.workspace}}/params.${{env.DEPLOYMENT_ENV}}.json
         capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND, CAPABILITY_NAMED_IAM
         no-fail-on-empty-changeset: "1"
-        tags: ${{ env.DEPLOYMENT_TAGS }}
+        tags: ${{env.DEPLOYMENT_TAGS}}

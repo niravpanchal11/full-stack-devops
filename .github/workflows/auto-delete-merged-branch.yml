@@ -1,0 +1,35 @@
+name: Delete Merged branch
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Needed for branch deletion
+
+jobs:
+  delete-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run if Pull Request is merged/closed
+        run: |
+          if [ "${{github.event.pull_request.merged}}" == "true" ]; then
+            if [[ "${{github.head_ref}}" =~ ^(dev|develop|stage|qa|main|master)$ ]]; then
+              echo "The PR was merged from a non-feature branch: ${{github.head_ref}}"
+            else
+              echo "The PR was merged. Deleting a feature branch: ${{github.head_ref}}"
+              git config --global user.name "github-actions"
+              git config --global user.email "github-actions@github.com"
+              git push origin --delete "${{github.head_ref}}"
+            fi
+          else
+            echo "The PR was closed, but not merged."
+            echo "We delete a feature branch: ${{github.head_ref}} in this case."
+            git config --global user.name "github-actions"
+            git config --global user.email "github-actions@github.com"
+            git push origin --delete "${{github.head_ref}}"
+          fi
