@@ -80,12 +80,12 @@ jobs:
 
     - name: Set DEPLOYMENT_ENV and DEPLOYMENT_ROLE_ARN and S3_BUCKET
       env: 
-        DEV_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_DEV }}
-        QA_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_QA }}
-        PROD_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_PROD }}
-        DEV_S3_BUCKET: ${{ vars.S3_BUCKET_DEV }}
-        QA_S3_BUCKET: ${{ vars.S3_BUCKET_QA }}
-        PROD_S3_BUCKET: ${{ vars.S3_BUCKET_PROD }}
+        DEV_DEPLOYMENT_ROLE: ${{ secrets.DEPLOYMENT_ROLE_DEV }}
+        QA_DEPLOYMENT_ROLE: ${{ secrets.DEPLOYMENT_ROLE_QA }}
+        PROD_DEPLOYMENT_ROLE: ${{ secrets.DEPLOYMENT_ROLE_PROD }}
+        DEV_S3_BUCKET: ${{ secrets.S3_BUCKET_DEV }}
+        QA_S3_BUCKET: ${{ secrets.S3_BUCKET_QA }}
+        PROD_S3_BUCKET: ${{ secrets.S3_BUCKET_PROD }}
       run: |
          if [[ $BRANCH == 'master' || $BRANCH == 'main' ]]; then 
           echo "DEPLOYMENT_ENV=prod" >> "$GITHUB_ENV" 
@@ -114,7 +114,7 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{env.DEPLOYMENT_ROLE_ARN}}
-        aws-region: ${{vars.AWS_REGION}}
+        aws-region: ${{secrets.AWS_REGION}}
 
     - name: Setup AWS SAM
       uses: aws-actions/setup-sam@v2
