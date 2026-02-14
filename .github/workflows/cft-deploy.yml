@@ -1,8 +1,4 @@
-name: Deploy Cloudformation
-
-# on: 
-#   push:     
-#     branches: [master, main, qa, stage-qa, dev, develop]
+name: Deploy CloudFormation
 
 on:
   push:
@@ -27,9 +23,10 @@ jobs:
     steps:
       - name: Get Date
         id: getDate
-        run: echo "::set-output name=date::$(/bin/date -u "+%Y%m%d%H")"
+        run: echo "date=$(date -u +%Y%m%d%H)" >> $GITHUB_OUTPUT
         shell: bash
-      - name: environment
+
+      - name: Environment
         id: getEnvironment
         env:
           BRANCH: ${{github.ref_name}}
@@ -37,14 +34,14 @@ jobs:
           QA_BRANCH: qa
         run: |
           case "$BRANCH" in
-            "$PRD_BRANCH") echo "::set-output name=environment_name::prd" ;;
-            "$QA_BRANCH") echo "::set-output name=environment_name::qa" ;;
-            *) echo "::set-output name=environment_name::dev" ;;
+            "$PRD_BRANCH") echo "environment_name=prd" >> $GITHUB_OUTPUT ;;
+            "$QA_BRANCH") echo "environment_name=qa" >> $GITHUB_OUTPUT ;;
+            *) echo "environment_name=dev" >> $GITHUB_OUTPUT ;;
           esac
         shell: bash
 
-  DeployCloudformation:
-    name: Deploy Cloudformation
+  DeployCloudFormation:
+    name: Deploy CloudFormation
     needs: [ENV]
     environment: ${{needs.ENV.outputs.Env}}
     runs-on: ubuntu-latest
@@ -53,26 +50,35 @@ jobs:
       contents: read
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
-    
+      uses: actions/checkout@v6
+
     - name: cfn-lint-action
-      uses: ScottBrenner/cfn-lint-action@v2.2.9
-      
-    - name: Print the Cloud Formation Linter Version & run Linter.
+      uses: ScottBrenner/cfn-lint-action@v2
+
+    - name: Print the CloudFormation Linter Version & Run Linter
       run: |
         cfn-lint --version
         cfn-lint -t ./template.yml -i W3002
-        
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: 3.13
+        cache: 'pip' # caching pip dependencies
+
+    - name: Installing pip dependencies
+      run: pip install -r ${GITHUB_WORKSPACE}/.github/workflows/requirements.txt
+
     - name: Set env BRANCH
       run: echo "BRANCH=$(echo $GITHUB_REF | cut -d'/' -f 3)" >> $GITHUB_ENV
-    
+
     - name: Set permissions for tags.*.json
       run: |
         chmod +r ./tags.dev.json
         chmod +r ./tags.qa.json
         chmod +r ./tags.prod.json
 
-    - name: Set env DEPLOYMENT_ENV and DEPLOYMENT_ROLE_ARN and S3_BUCKET
+    - name: Set DEPLOYMENT_ENV and DEPLOYMENT_ROLE_ARN and S3_BUCKET
       env: 
         DEV_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_DEV }}
         QA_DEPLOYMENT_ROLE: ${{ vars.DEPLOYMENT_ROLE_QA }}
@@ -110,26 +116,18 @@ jobs:
         role-to-assume: ${{env.DEPLOYMENT_ROLE_ARN}}
         aws-region: ${{vars.AWS_REGION}}
 
-    - name: Setup Python
-      uses: actions/setup-python@v3
-      continue-on-error: true      
-      with:
-        python-version: 3.12
-        cache: 'pip'
-
     - name: Setup AWS SAM
       uses: aws-actions/setup-sam@v2
 
     - name: Run AWS SAM Build
       run: sam build --use-container --template-file template.yml
-      
-    - name: sam package
-      run: sam package --template-file .aws-sam/build/template.yaml --s3-bucket ${{env.S3_BUCKET}} --output-template-file template.yml --kms-key-id alias/aws/s3
+
+    - name: Run AWS SAM Package
+      run: |
+        sam package --template-file .aws-sam/build/template.yaml --s3-bucket ${{env.S3_BUCKET}} --output-template-file template.yml --kms-key-id alias/aws/s3
 
     - name: Upload CloudFormation Template to S3
-      run: |
-        aws s3 sync config/ s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/config/
-        aws s3 sync glue/ s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/glue/      
+      run: |    
         aws s3 sync lambda/ s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/lambda/ 
         aws s3 cp ./template.yml s3://${{env.S3_BUCKET}}/${{github.event.repository.name}}/template.yml  
 
@@ -139,6 +137,6 @@ jobs:
         name: pipeline-${{github.event.repository.name}}-deployment
         template: https://s3.amazonaws.com/${{env.S3_BUCKET}}/${{github.event.repository.name}}/template.yml
         parameter-overrides: file://${{github.workspace}}/params.${{env.DEPLOYMENT_ENV}}.json
-        capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND, CAPABILITY_NAMED_IAM
+        capabilities: CAPABILITY_IAM, CAPABILITY_AUTO_EXPAND, CAPABILITY_NAMED_IAM
         no-fail-on-empty-changeset: "1"
         tags: ${{env.DEPLOYMENT_TAGS}}
